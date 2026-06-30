@@ -57,29 +57,62 @@ class PaymentReceipt:
 
 
 def _build_payment_header(requirements: dict, amount: float, mode: str) -> str:
-    """Build the X-PAYMENT header value.
+    """Build the X-PAYMENT header value for the MOCK handshake (base64 JSON stub).
 
-    mock: a base64 JSON stub (no signature).
-    real: sign an ERC-3009 transferWithAuthorization (EIP-712) — Phase A.
+    Real ERC-3009 signing is not done here — in real mode the x402 library's own
+    paying session handles the 402 -> sign -> retry loop (see _real_pay_and_call).
     """
-    if mode == "mock":
-        stub = {"mock": True, "amount": str(amount),
-                "accepts": requirements.get("accepts", [])}
-        return base64.b64encode(json.dumps(stub).encode()).decode()
-    # --- Phase A: real ERC-3009 signing ---
-    # from eth_account import Account; from web3 import Web3
-    # accept = requirements["accepts"][0]
-    # authorization = {from, to=accept["payTo"], value, validAfter, validBefore, nonce}
-    # signature = Account.sign_typed_data(WALLET_PRIVATE_KEY, eip712_domain, types, authorization)
-    # return base64(json({"x402Version":1,"scheme":"exact","network":...,"payload":{authorization,signature}}))
-    raise NotImplementedError("real ERC-3009 signing is wired in Phase A")
+    stub = {"mock": True, "amount": str(amount),
+            "accepts": requirements.get("accepts", [])}
+    return base64.b64encode(json.dumps(stub).encode()).decode()
+
+
+# Verified against installed x402 v2.14.0 (pip install "x402[evm]").
+def build_paying_session(network: str | None = None):
+    """Return a requests.Session that auto-handles HTTP 402 by signing an
+    EIP-3009 'exact' authorization with WALLET_PRIVATE_KEY (Base Sepolia testnet).
+    """
+    import os as _os
+
+    from eth_account import Account
+    from x402 import x402ClientSync
+    from x402.http.clients import x402_requests
+    from x402.mechanisms.evm import EthAccountSigner
+    from x402.mechanisms.evm.exact.register import register_exact_evm_client
+
+    key = _os.environ.get("WALLET_PRIVATE_KEY")
+    if not key:
+        raise RuntimeError("WALLET_PRIVATE_KEY not set (testnet key required for real mode)")
+    network = network or _os.environ.get("X402_NETWORK", "eip155:84532")
+    client = x402ClientSync()
+    register_exact_evm_client(client, EthAccountSigner(Account.from_key(key)), networks=network)
+    return x402_requests(client)
+
+
+def _real_pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard,
+                       url: str | None, timeout: float) -> dict:
+    target = url or entry.seller_url
+    body = {"model": entry.model_id, "messages": [{"role": "user", "content": prompt}]}
+    amount = entry.price_usdc_per_call
+    guard.authorize(amount)                       # soft pre-cap vs expected catalog price
+    session = build_paying_session()
+    r = session.post(target, json=body, timeout=timeout)
+    r.raise_for_status()
+    guard.record(amount)
+    # v2 settlement comes back in the PAYMENT-RESPONSE header (base64 JSON).
+    tx = _decode_tx(r.headers.get("PAYMENT-RESPONSE", r.headers.get("X-PAYMENT-RESPONSE", "")))
+    return {"result": r.json(), "receipt": PaymentReceipt(paid_usdc=amount, tx_hash=tx, mock=False)}
 
 
 def _decode_tx(header_val: str) -> str:
     if not header_val:
         return ""
     try:
-        return json.loads(base64.b64decode(header_val)).get("txHash", "")
+        d = json.loads(base64.b64decode(header_val))
+        for k in ("txHash", "transaction", "transactionHash", "tx_hash"):
+            if d.get(k):
+                return d[k]
+        return ""
     except Exception:
         return header_val
 
@@ -89,6 +122,9 @@ def pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard, *,
                  post=requests.post, timeout: float = 30.0) -> dict:
     """Pay for and call one model. `post` is injectable for testing (TestClient)."""
     mode = mode or os.environ.get("X402_MODE", "mock")
+    if mode == "real":
+        return _real_pay_and_call(entry, prompt, guard, url, timeout)
+
     target = url or entry.seller_url
     body = {"model": entry.model_id, "messages": [{"role": "user", "content": prompt}]}
 

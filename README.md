@@ -18,7 +18,7 @@
 ## 현재 상태
 - ✅ **Phase 1 (완료)**: 벤치마크 선택 로직. 오프라인 실행/테스트 가능.
 - ✅ **Phase 2 (완료, mock 결제)**: x402 프록시 셀러 + payer + 지출 가드레일. **HTTP 402 핸드셰이크는 진짜**, 암호화(서명/검증)만 mock. 지갑/faucet 없이 e2e 실행.
-- ⬜ Phase A (실결제): payer ERC-3009 서명 + 프록시 facilitator 검증 스왑. 테스트넷 지갑·USDC 필요.
+- ✅ **Phase A (코드 완료)**: 실 x402 결제 경로. payer는 x402 v2 라이브러리 결제 세션, 셀러는 x402 미들웨어 + facilitator. 모든 심볼 설치본(x402 v2.14.0)에 import·construct 검증. **라이브 온체인 결제는 펀딩된 테스트넷 지갑 필요 → 아래 런북.**
 - ⬜ Phase 3: Heurist 실셀러 편입.
 - ⬜ Phase 4: ERC-8004 평판 피드백 (확장).
 - ⬜ Phase 5: 프록시 백엔드를 실제 Claude/OpenAI 키로 교체, 최종 데모.
@@ -33,6 +33,23 @@ python scripts/demo.py
 ```
 출력: 선택 모델 + 이유, `[paid N USDC | MOCK tx 0x...]`, 결과물.
 mock 모드에선 모든 셀러가 로컬 프록시로 라우팅됨(실 Heurist는 실결제 필요 → Phase A).
+
+## 실행 (Phase A, 실 온체인 결제 — 테스트넷)
+사전: `pip install "x402[evm]"`. 지갑 준비 + Base Sepolia USDC faucet([faucet.circle.com](https://faucet.circle.com)). 공개 facilitator 사용 시 CDP 키 불필요.
+```bash
+# .env 설정: WALLET_PRIVATE_KEY(펀딩된 테스트넷 키), X402_PAY_TO(셀러 수령 주소),
+#            X402_NETWORK=eip155:84532, X402_FACILITATOR_URL=https://x402.org/facilitator
+
+# 1) 실 셀러 프록시 (별도 터미널)
+set -a; source .env; set +a
+X402_MODE=real PROXY_BACKEND=mock uvicorn seller_proxy.real:app --port 8402
+# 2) 실결제 에이전트: 선택 → 402 → ERC-3009 서명 → 온체인 정산 → 결과
+X402_MODE=real python -m agent.main --prompt "..." --priority coding
+```
+출력의 tx hash를 [sepolia.basescan.org](https://sepolia.basescan.org)에서 조회해 온체인 정산 확인.
+프론티어 백엔드(Phase 5)는 `PROXY_BACKEND=anthropic|openai` + 해당 키로 교체.
+
+> CDP 호스티드 facilitator로 바꾸려면: `cdp-sdk` 설치 + `seller_proxy/real.py`의 `_cdp_create_headers()`에 JWT 헤더 함수 연결, `CDP_API_KEY_ID/SECRET` 설정.
 
 ## 실행 (Phase 1)
 ```bash
@@ -61,8 +78,9 @@ pytest tests/ -q
 - **테스트넷 전용. 임시 지갑 키만 `.env`에. 절대 커밋 금지** (`.gitignore`에 `.env`).
 - payer 지출 가드레일: 호출당/세션 USDC 상한 (`MAX_USDC_PER_CALL`, `MAX_USDC_PER_SESSION`).
 
-## 빌드 시 검증 필요 (리서치 시점 미확정)
-- Heurist 정확한 x402 엔드포인트·모델 id
-- x402 Python 라이브러리 최신 API
-- Base Sepolia x402 facilitator 주소
-- AA `/free` 응답에서 `config/scores_cache.json`의 slug 정합성
+## 검증 상태
+해소됨: x402 Python API(v2.14.0 introspect 검증), 네트워크 id(`eip155:84532`), Base Sepolia USDC(`0x036C…CF7e`), 공개 facilitator URL.
+남음 (각 Phase에서):
+- Heurist 정확한 x402 엔드포인트·모델 id (Phase 3)
+- CDP facilitator JWT 헤더 wiring (`cdp-sdk`, 선택)
+- AA `/free` 실응답에서 `config/scores_cache.json` slug 정합성 (`--live`)
