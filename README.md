@@ -22,7 +22,7 @@
 ## 현재 상태
 - ✅ **Phase 1 (완료)**: 벤치마크 선택 로직. 오프라인 실행/테스트 가능.
 - ✅ **Phase 2 (완료, mock 결제)**: x402 프록시 셀러 + payer + 지출 가드레일. **HTTP 402 핸드셰이크는 진짜**, 암호화(서명/검증)만 mock. 지갑/faucet 없이 e2e 실행.
-- ✅ **Phase A (코드 완료)**: 실 x402 결제 경로. payer는 x402 v2 라이브러리 결제 세션, 셀러는 x402 미들웨어 + facilitator. 모든 심볼 설치본(x402 v2.14.0)에 import·construct 검증. **라이브 온체인 결제는 펀딩된 테스트넷 지갑 필요 → 아래 런북.**
+- ✅ **Phase A (라이브 검증 완료)**: 실 x402 온체인 결제 Base Sepolia에서 성공. 벤치마크 선택 → ERC-3009 가스리스 결제 → USDC 온체인 이동 → 결과. 가스는 facilitator 대납 확인. 증거 tx: `0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3` ([basescan](https://sepolia.basescan.org/tx/0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3)).
 - ✅ **Phase 4 (완료, mock 평판)**: judge(결과 품질 평가) → 나쁘면 ERC-8004 `giveFeedback` 기록. mock=로컬 원장, real=Reputation Registry(`0x8004B663…`, Base Sepolia, 지갑 필요). 전체 루프 e2e.
 - ✅ **Phase 3 (정정)**: Heurist는 테스트넷 x402 LLM 셀러 아님(메인넷 툴 셀러)으로 검증 → 오픈모델은 프록시 `heurist` 백엔드로 편입. 버이어가 라이브 실 x402 402 파싱함 검증(`scripts/probe_real_402.py`).
 - ⬜ Phase 5: 프록시 백엔드를 실제 Claude/OpenAI 키로 교체, 최종 데모.

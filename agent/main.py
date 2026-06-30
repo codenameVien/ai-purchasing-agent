@@ -56,8 +56,12 @@ def run(prompt: str, priorities, use_live: bool = False,
     receipt = out["receipt"]
     content = out["result"]["choices"][0]["message"]["content"]
     if receipt:
-        tag = "MOCK tx" if receipt.mock else "tx"
-        print(f"\n[paid {receipt.paid_usdc} USDC | {tag} {receipt.tx_hash}]")
+        if receipt.mock:
+            print(f"\n[paid {receipt.paid_usdc} USDC | MOCK tx {receipt.tx_hash}]")
+        else:
+            # On-chain: the tx hash is the source of truth for the actual amount
+            # (the proxy's PROXY_PRICE). paid_usdc here is only the authorized cap.
+            print(f"\n[settled on-chain | tx {receipt.tx_hash} | authorized <= {receipt.paid_usdc} USDC]")
     print(f"\n--- Result ---\n{content}")
 
     # Judge the result; record ERC-8004 reputation feedback if it was bad.
