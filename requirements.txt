@@ -4,13 +4,15 @@ requests>=2.31
 python-dotenv>=1.0
 pytest>=8.0
 
-# --- Phase 2+: x402 payment + seller proxy (uncomment when building) ---
+# --- Phase 2: x402 proxy seller + payer (mock crypto) ---
+fastapi>=0.110         # seller proxy
+uvicorn>=0.29          # run the proxy
+httpx>=0.27            # FastAPI TestClient
+
+# --- Phase A: real on-chain payment (uncomment when wiring real x402) ---
 # x402>=0.1            # x402 client + server middleware (verify latest API at build time)
 # web3>=6.0            # ERC-3009 EIP-712 signing, Base Sepolia
 # eth-account>=0.11
-# fastapi>=0.110       # seller proxy
-# uvicorn>=0.29
-# httpx>=0.27          # async x402 client calls
 
 # --- Phase 5: frontier backends (final test only) ---
 # anthropic>=0.40

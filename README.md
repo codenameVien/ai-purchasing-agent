@@ -17,10 +17,22 @@
 
 ## 현재 상태
 - ✅ **Phase 1 (완료)**: 벤치마크 선택 로직. 오프라인 실행/테스트 가능.
-- ⬜ Phase 2: 자체 x402 프록시 셀러 + payer 연결 (테스트넷 실결제).
+- ✅ **Phase 2 (완료, mock 결제)**: x402 프록시 셀러 + payer + 지출 가드레일. **HTTP 402 핸드셰이크는 진짜**, 암호화(서명/검증)만 mock. 지갑/faucet 없이 e2e 실행.
+- ⬜ Phase A (실결제): payer ERC-3009 서명 + 프록시 facilitator 검증 스왑. 테스트넷 지갑·USDC 필요.
 - ⬜ Phase 3: Heurist 실셀러 편입.
 - ⬜ Phase 4: ERC-8004 평판 피드백 (확장).
 - ⬜ Phase 5: 프록시 백엔드를 실제 Claude/OpenAI 키로 교체, 최종 데모.
+
+## 실행 (Phase 2, mock e2e)
+```bash
+# 1) 셀러 프록시 기동 (별도 터미널)
+X402_MODE=mock PROXY_BACKEND=mock uvicorn seller_proxy.main:app --port 8402
+# 2) 에이전트 e2e: 선택 → 402 → mock 결제 → 결과
+X402_MODE=mock python -m agent.main --prompt "Write binary search in Rust" --priority coding
+python scripts/demo.py
+```
+출력: 선택 모델 + 이유, `[paid N USDC | MOCK tx 0x...]`, 결과물.
+mock 모드에선 모든 셀러가 로컬 프록시로 라우팅됨(실 Heurist는 실결제 필요 → Phase A).
 
 ## 실행 (Phase 1)
 ```bash

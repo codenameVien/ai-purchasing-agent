@@ -10,8 +10,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 
 from .catalog import Catalog
+from .payer import SpendGuard, SpendingError, pay_and_call
 from .selector import Ranked, fetch_scores, select
 
 
@@ -36,12 +38,25 @@ def run(prompt: str, priorities, use_live: bool = False) -> dict:
     print(f"\n=> SELECTED: {winner.name} via {winner.entry.seller} "
           f"(~{winner.entry.price_usdc_per_call} USDC/call)")
 
-    # --- Phase 2 plugs in here ---
-    # from .payer import pay_and_call
-    # result = pay_and_call(winner.entry, prompt)
-    result = f"[MOCK RESULT from {winner.entry.model_id}] (payer not wired yet — Phase 2)"
-    print(f"\n--- Result ---\n{result}")
-    return {"selected": winner.entry.aa_slug, "seller": winner.entry.seller, "result": result}
+    # Pay-per-call via x402. In mock mode every seller is routed to the local
+    # proxy (real Heurist needs real on-chain payment -> Phase A).
+    mode = os.environ.get("X402_MODE", "mock")
+    proxy_url = os.environ.get("X402_PROXY_URL", "http://localhost:8402/inference")
+    url = proxy_url if mode == "mock" else None
+    guard = SpendGuard.from_env()
+    try:
+        out = pay_and_call(winner.entry, prompt, guard, mode=mode, url=url)
+    except SpendingError as e:
+        raise SystemExit(f"payment refused by guardrail: {e}")
+
+    receipt = out["receipt"]
+    content = out["result"]["choices"][0]["message"]["content"]
+    if receipt:
+        tag = "MOCK tx" if receipt.mock else "tx"
+        print(f"\n[paid {receipt.paid_usdc} USDC | {tag} {receipt.tx_hash}]")
+    print(f"\n--- Result ---\n{content}")
+    return {"selected": winner.entry.aa_slug, "seller": winner.entry.seller,
+            "result": content, "receipt": receipt}
 
 
 def main():
