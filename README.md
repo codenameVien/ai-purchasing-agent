@@ -1,100 +1,191 @@
-# AI Purchasing Agent
+# AI Purchasing Agent — x402 pay-per-call model router
 
-벤치마크 점수로 사용자 요청에 가장 맞는 AI 모델을 고르고, **x402 + ERC-3009** 마이크로페이먼트로 호출당 결제해 결과를 받아오는 구매 에이전트. (확장: 결과가 나쁘면 **ERC-8004** 평판 레지스트리에 기록.)
+An agent that, given a user request + priority, **picks the best AI model by benchmark score**, **pays per call with x402 + ERC-3009 stablecoin micropayments**, fetches the result, and (extension) **records ERC-8004 reputation** when a result is bad.
 
-목표: 포트폴리오/해커톤 데모. Base Sepolia 테스트넷에서 e2e 실작동.
+> ✅ **Live-verified on Base Sepolia.** A real on-chain x402 payment settled end-to-end: benchmark selection → gasless ERC-3009 USDC transfer → result. Proof tx: [`0xabb329c2…b7a3`](https://sepolia.basescan.org/tx/0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3) (USDC moved buyer→seller, gas paid by the facilitator).
 
-## 동작
+*(한국어 설명은 아래 [## 한국어](#한국어) 참고.)*
+
+---
+
+## What it does
+
 ```
-요청 + 우선순위  →  [selector] 벤치마크 가중 스코어링  →  [catalog] 셀러 매핑
-                 →  [payer] x402 결제(402→ERC-3009 서명→재요청)  →  결과
-                 →  (확장) [reputation] 결과 나쁘면 ERC-8004 giveFeedback
+user request + priority ("coding, cheap")
+  → [selector]  weight benchmark scores (Artificial Analysis) by priority
+  → [catalog]   map the winner to a seller endpoint
+  → [payer]     x402: 402 → sign ERC-3009 authorization → retry → settle
+  → result
+  → [judge]     score the answer
+  → [reputation] if bad, ERC-8004 giveFeedback on the seller
 ```
 
-판매자(seller): **자체 x402 프록시** 1종. 모든 LLM 추론을 x402로 우리 프록시에 결제하고,
-실제 모델은 `backend`(heurist/openrouter/anthropic/openai)가 수행. 개발=무료/mock, 최종=실키.
+**Why this shape.** As AI shifts from flat-rate to pay-per-call, the edge moves to *picking the right model and paying for it efficiently*. x402 makes per-call micropayments viable (no fixed fee), and an agent can pay autonomously (M2M). This is the buyer side of that world.
 
-> 생태계 현실(2026): **테스트넷에서 pay-per-token LLM을 x402로 파는 제3자 셀러는 없다.**
-> Heurist의 x402는 Base 메인넷에서 Mesh 에이전트 *툴*을 팔고(실 USDC), LLM 게이트웨이는
-> API키 인증이라 x402 아님. 그래서 프록시가 테스트넷 x402 LLM 셀러의 유일 경로.
-> 단, 버이어가 진짜 제3자 x402 402를 파싱함은 검증됨 → `python scripts/probe_real_402.py`.
+## Architecture
 
-## 현재 상태
-- ✅ **Phase 1 (완료)**: 벤치마크 선택 로직. 오프라인 실행/테스트 가능.
-- ✅ **Phase 2 (완료, mock 결제)**: x402 프록시 셀러 + payer + 지출 가드레일. **HTTP 402 핸드셰이크는 진짜**, 암호화(서명/검증)만 mock. 지갑/faucet 없이 e2e 실행.
-- ✅ **Phase A (라이브 검증 완료)**: 실 x402 온체인 결제 Base Sepolia에서 성공. 벤치마크 선택 → ERC-3009 가스리스 결제 → USDC 온체인 이동 → 결과. 가스는 facilitator 대납 확인. 증거 tx: `0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3` ([basescan](https://sepolia.basescan.org/tx/0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3)).
-- ✅ **Phase 4 (완료, mock 평판)**: judge(결과 품질 평가) → 나쁘면 ERC-8004 `giveFeedback` 기록. mock=로컬 원장, real=Reputation Registry(`0x8004B663…`, Base Sepolia, 지갑 필요). 전체 루프 e2e.
-- ✅ **Phase 3 (정정)**: Heurist는 테스트넷 x402 LLM 셀러 아님(메인넷 툴 셀러)으로 검증 → 오픈모델은 프록시 `heurist` 백엔드로 편입. 버이어가 라이브 실 x402 402 파싱함 검증(`scripts/probe_real_402.py`).
-- ⬜ Phase 5: 프록시 백엔드를 실제 Claude/OpenAI 키로 교체, 최종 데모.
+```
+┌──────────────── Buyer Agent (Python) ────────────────┐
+│ selector → catalog → payer (x402 client) → judge      │
+└───────────────────────┬───────────────────────────────┘
+                        │ x402 pay-per-call (USDC, Base Sepolia)
+                        ▼
+            ┌──────────────────────────────┐
+            │  self-built x402 proxy seller │  backend = mock | heurist
+            │  (FastAPI + x402 middleware)  │            | openrouter | anthropic | openai
+            └──────────────────────────────┘
+                        │
+                        ▼ (extension, when result is bad)
+            ERC-8004 Reputation Registry — giveFeedback()
+```
 
-## 실행 (Phase 2, mock e2e)
+**One seller: our x402 proxy.** As of 2026 **no third party sells pay-per-token LLM chat via x402 on testnet** — Heurist's x402 sells Mesh agent *tools* on Base **mainnet** (real USDC), and its LLM gateway is API-key only. So all LLM inference is x402-paid to our own proxy, and the real model is fulfilled by a swappable `backend` (free/mock during dev, real keys for the final run). The buyer is verified against a real third-party x402 envelope: `python scripts/probe_real_402.py`.
+
+## Live proof
+
+```
+tx 0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3   (Base Sepolia)
+status   SUCCESS, block 43528892
+transfer 0.001 USDC  buyer 0x29d3…5940 → seller 0x1868…9Eb5
+gas      paid by facilitator 0xd407…  (buyer is gasless — ERC-3009)
+```
+
+## Run (mock — no wallet, offline)
+
 ```bash
-# 1) 셀러 프록시 기동 (별도 터미널)
+pip install -r requirements.txt
+pytest -q                                   # 17 tests
+
+# terminal 1: x402 proxy (mock crypto, mock backend)
 X402_MODE=mock PROXY_BACKEND=mock uvicorn seller_proxy.main:app --port 8402
-# 2) 에이전트 e2e: 선택 → 402 → mock 결제 → 결과
+# terminal 2: select → 402 → mock pay → result → judge
 X402_MODE=mock python -m agent.main --prompt "Write binary search in Rust" --priority coding
 python scripts/demo.py
 ```
-출력: 선택 모델 + 이유, `[paid N USDC | MOCK tx 0x...]`, 결과물, 품질 평가.
-mock 모드에선 모든 셀러가 로컬 프록시로 라우팅됨(실 Heurist는 실결제 필요 → Phase A).
+Priority labels: `intelligence coding agentic cheap fast balanced` (combinable).
+See the reputation loop: run the proxy with `PROXY_BACKEND=mock_bad` (seller returns a refusal → judge marks it bad → `giveFeedback` is written to `data/reputation_ledger.json`).
 
-평판 루프 보기(나쁜 결과 → ERC-8004 기록): 프록시를 `PROXY_BACKEND=mock_bad`로 띄우면 셀러가 거부 응답 → judge가 bad 판정 → `giveFeedback` 원장(`data/reputation_ledger.json`) 기록.
-
-## 실행 (Phase A, 실 온체인 결제 — 테스트넷)
-**라이브 검증됨**: select→402→ERC-3009 EIP-712 서명(chainId 84532, Base Sepolia USDC)→재요청까지 실동작 확인. 남은 단 하나 = **구매자 지갑 충전**(잔액 0이면 facilitator가 결제 거부).
+## Run (live on-chain payment — Base Sepolia testnet)
 
 ```bash
 pip install "x402[evm]"
+python scripts/gen_wallet.py                # writes .env with 2 throwaway testnet wallets
+#  → fund the printed BUYER address at https://faucet.circle.com (Base Sepolia USDC)
 
-# 1) 일회용 지갑 2개 생성 + .env 작성 (개인키는 .env에만, 출력 안 됨)
-python scripts/gen_wallet.py
-#  → 출력된 BUYER_ADDRESS를 faucet.circle.com(Base Sepolia)에서 USDC 충전
-
-# 2) 실 셀러 프록시 (별도 터미널)
 set -a; . ./.env; set +a
-uvicorn seller_proxy.real:app --port 8402
-
-# 3) 실결제 에이전트
-python -m agent.main --prompt "Write binary search in Rust" --priority coding
+uvicorn seller_proxy.real:app --port 8402   # terminal 1
+python -m agent.main --prompt "Write binary search in Rust" --priority coding  # terminal 2
 ```
-성공 시 출력 tx hash를 [sepolia.basescan.org](https://sepolia.basescan.org)에서 조회.
-프론티어 백엔드(Phase 5)는 `.env`에서 `PROXY_BACKEND=anthropic|openai` + 해당 키.
+The printed tx hash settles on [sepolia.basescan.org](https://sepolia.basescan.org). Public facilitator (default) needs **no CDP key** — a funded wallet is enough; gas is sponsored.
 
-> ⚠️ `.env` 가격은 **bare 숫자**(`PROXY_PRICE=0.001`). `$0.001`로 쓰면 `set -a; . ./.env`가 `$0`을 스크립트명으로 확장해 깨짐.
->
-> CDP 호스티드 facilitator로 바꾸려면: `cdp-sdk` 설치 + `seller_proxy/real.py`의 `_cdp_create_headers()`에 JWT 헤더 함수 연결, `CDP_API_KEY_ID/SECRET` 설정.
+> ⚠️ In `.env`, set `PROXY_PRICE` as a **bare number** (`0.001`). A leading `$` (`$0.001`) gets shell-expanded by `set -a; . ./.env` (`$0` = script name) and corrupts the value.
 
-## 실행 (Phase 1)
-```bash
-pip install -r requirements.txt
-python -m agent.main --prompt "Write binary search in Rust" --priority coding
-python -m agent.main --prompt "summarize this" --priority cheap fast
-pytest tests/ -q
+## Project structure
+
+| Path | Role |
+|------|------|
+| `agent/selector.py` | AA score fetch + priority→weight normalized scoring |
+| `agent/catalog.py` | model → seller/backend mapping, priority presets |
+| `agent/payer.py` | x402 client (mock handshake + real `x402[evm]` session) + spend guardrails |
+| `agent/judge.py` | result quality verdict (heuristic; LLM-judge stub) |
+| `agent/main.py` | orchestrator (request→select→pay→result→judge→feedback) |
+| `seller_proxy/main.py` | mock x402-gated seller (real 402 handshake, mock crypto) |
+| `seller_proxy/real.py` | real x402 seller (x402 v2 middleware + facilitator) |
+| `seller_proxy/backends.py` | provider-agnostic backends |
+| `reputation/feedback.py` | ERC-8004 giveFeedback (mock ledger / on-chain stub) |
+| `scripts/` | `gen_wallet.py`, `demo.py`, `probe_real_402.py` |
+
+## Phases
+
+- ✅ **1** Benchmark selection (offline)
+- ✅ **2** x402 proxy seller + payer + spend guardrails (mock crypto, real 402 handshake)
+- ✅ **A** Real on-chain x402 payment — **live-verified on Base Sepolia**
+- ✅ **3** Heurist reality-checked (mainnet tool seller, not testnet LLM x402) + real-402 probe
+- ✅ **4** ERC-8004 reputation loop (mock ledger; on-chain stub)
+- ⬜ **5** Swap proxy backend to a real Claude/OpenAI key for the final answer
+
+## Security
+
+- **Testnet only. Disposable wallet only.** A private key controls *all* chains — never put a MetaMask / mainnet / funded key in `.env`. `gen_wallet.py` makes throwaway keys; `.env` is gitignored and never printed.
+- Spend guardrails: `MAX_USDC_PER_CALL`, `MAX_USDC_PER_SESSION` — the agent refuses to pay above caps.
+- Wallet/payment/signing code is sensitive → this repo stays **private** unless audited for public release.
+
+## Verified facts (researched + introspected, not assumed)
+
+- x402 Python API pinned to installed **v2.14.0** (`eip155:84532` CAIP-2, not `"base-sepolia"`).
+- Base Sepolia USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e`; public facilitator `https://x402.org/facilitator`.
+- Heurist x402 = mainnet Mesh tools; not a testnet LLM seller (live-curled).
+- ERC-8004 `giveFeedback(...)` interface + Base Sepolia Reputation Registry `0x8004B663…` (Draft — verify before on-chain use).
+
+---
+
+# 한국어
+
+사용자 요청 + 우선순위를 받아 **벤치마크 점수로 가장 맞는 AI 모델을 고르고**, **x402 + ERC-3009 스테이블코인 마이크로페이먼트로 호출당 결제**해 결과를 받아오며, (확장) 결과가 나쁘면 **ERC-8004 평판에 기록**하는 구매 에이전트.
+
+> ✅ **Base Sepolia에서 라이브 검증 완료.** 실제 온체인 x402 결제가 e2e로 정산됨: 벤치마크 선택 → 가스리스 ERC-3009 USDC 이동 → 결과. 증거 tx: [`0xabb329c2…b7a3`](https://sepolia.basescan.org/tx/0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3).
+
+## 무엇을 하나
+
 ```
-우선순위 라벨: `intelligence coding agentic cheap fast balanced` (복수 지정 가능).
+사용자 요청 + 우선순위 ("coding, 저렴하게")
+  → [selector]  Artificial Analysis 점수를 우선순위 가중치로 스코어링
+  → [catalog]   선택된 모델 → 셀러 엔드포인트 매핑
+  → [payer]     x402: 402 → ERC-3009 서명 → 재요청 → 정산
+  → 결과
+  → [judge]     답변 품질 평가
+  → [reputation] 나쁘면 ERC-8004 giveFeedback
+```
 
-`--live`로 Artificial Analysis API 실데이터 사용 (`.env`에 `AA_API_KEY` 필요). 없으면 `config/scores_cache.json` 캐시 사용.
+**왜 이 구조인가.** AI가 정액제→종량제로 가면 경쟁력은 *맞는 모델을 골라 효율적으로 사 쓰는 능력*으로 이동한다. x402가 고정수수료 없는 호출당 마이크로페이먼트를 가능케 하고, 에이전트가 자율 결제(M2M)할 수 있다. 이 프로젝트는 그 세계의 구매자 측이다.
 
 ## 구조
-| 경로 | 역할 |
-|------|------|
-| `agent/selector.py` | AA 점수 fetch + 우선순위→가중치 정규화 스코어링 |
-| `agent/catalog.py` | 모델→셀러 매핑, 우선순위 프리셋 |
-| `agent/main.py` | 오케스트레이터 (요청→선택→결제→결과) |
-| `agent/payer.py` | x402 클라이언트 + 테스트넷 지갑 + 지출 가드레일 *(Phase 2)* |
-| `seller_proxy/` | x402-gated FastAPI 셀러 *(Phase 2)* |
-| `reputation/` | ERC-8004 피드백 래퍼 *(Phase 4)* |
-| `config/catalog.yaml` | 모델·셀러·가격·우선순위 가중치 |
-| `config/scores_cache.json` | AA 점수 오프라인 캐시 (라이브로 교체) |
+
+모든 LLM 추론은 x402로 **우리 프록시**에 결제하고, 실제 모델은 교체식 `backend`(개발=무료/mock, 최종=실키)가 수행한다. **이유:** 2026년 현재 테스트넷에 pay-per-token LLM을 x402로 파는 제3자 셀러가 없다 — Heurist x402는 Base **메인넷**에서 Mesh 에이전트 *툴*(실 USDC)을 팔고, LLM 게이트웨이는 API키 인증이라 x402가 아니다. 단 버이어가 진짜 제3자 x402 봉투를 파싱함은 검증됨(`scripts/probe_real_402.py`).
+
+## 라이브 증거
+
+```
+tx 0xabb329c2…b7a3 (Base Sepolia) — SUCCESS
+USDC 0.001 이동: 구매자 0x29d3…5940 → 판매자 0x1868…9Eb5
+가스: facilitator 0xd407…가 대납 (구매자 가스리스, ERC-3009)
+```
+
+## 실행 (mock — 지갑 불필요)
+
+```bash
+pip install -r requirements.txt
+pytest -q
+X402_MODE=mock PROXY_BACKEND=mock uvicorn seller_proxy.main:app --port 8402   # 터미널1
+X402_MODE=mock python -m agent.main --prompt "Write binary search in Rust" --priority coding  # 터미널2
+```
+우선순위 라벨: `intelligence coding agentic cheap fast balanced` (복수 지정). 평판 루프는 프록시를 `PROXY_BACKEND=mock_bad`로 띄우면 확인(거부 응답 → bad 판정 → `data/reputation_ledger.json`에 기록).
+
+## 실행 (라이브 온체인 결제 — 테스트넷)
+
+```bash
+pip install "x402[evm]"
+python scripts/gen_wallet.py        # 일회용 테스트넷 지갑 2개 + .env 생성
+#  → 출력된 BUYER 주소를 faucet.circle.com(Base Sepolia)에서 USDC 충전
+set -a; . ./.env; set +a
+uvicorn seller_proxy.real:app --port 8402   # 터미널1
+python -m agent.main --prompt "..." --priority coding  # 터미널2
+```
+출력 tx hash를 sepolia.basescan.org에서 확인. 공개 facilitator 기본이라 **CDP 키 불필요** — 펀딩 지갑만 있으면 됨(가스 대납).
+
+> ⚠️ `.env`의 `PROXY_PRICE`는 **bare 숫자**(`0.001`). `$0.001`로 쓰면 `set -a; . ./.env`가 `$0`(스크립트명)을 확장해 깨진다.
+
+## 단계
+
+- ✅ **1** 벤치마크 선택 (오프라인)
+- ✅ **2** x402 프록시 셀러 + payer + 지출 가드레일 (암호화만 mock, 402 핸드셰이크는 실제)
+- ✅ **A** 실 온체인 x402 결제 — **Base Sepolia 라이브 검증**
+- ✅ **3** Heurist 현실 검증(메인넷 툴 셀러, 테스트넷 LLM x402 아님) + real-402 프로브
+- ✅ **4** ERC-8004 평판 루프 (mock 원장; 온체인 스텁)
+- ⬜ **5** 프록시 백엔드를 실제 Claude/OpenAI 키로 교체(최종 답변)
 
 ## 보안
-- **테스트넷 전용. 임시 지갑 키만 `.env`에. 절대 커밋 금지** (`.gitignore`에 `.env`).
-- payer 지출 가드레일: 호출당/세션 USDC 상한 (`MAX_USDC_PER_CALL`, `MAX_USDC_PER_SESSION`).
 
-## 검증 상태
-해소됨: x402 Python API(v2.14.0 introspect 검증), 네트워크 id(`eip155:84532`), Base Sepolia USDC(`0x036C…CF7e`), 공개 facilitator URL.
-Heurist 라이브 검증됨: x402=메인넷 Mesh 툴(LLM 아님), LLM 게이트웨이=API키. 봉투 v1.
-남음 (각 Phase에서):
-- CDP facilitator JWT 헤더 wiring (`cdp-sdk`, 선택)
-- AA `/free` 실응답에서 `config/scores_cache.json` slug 정합성 (`--live`)
-- Heurist `qwen` 모델 id (supported-models에서 미확인)
+- **테스트넷 전용. 일회용 지갑만.** 개인키는 *모든* 체인을 통제 — 메타마스크/메인넷/자산 든 키를 `.env`에 절대 금지. `gen_wallet.py`가 일회용 키 생성, `.env`는 gitignore + 출력 안 함.
+- 지출 가드레일: `MAX_USDC_PER_CALL`, `MAX_USDC_PER_SESSION` 초과 시 결제 거부.
+- 지갑·결제·서명 코드는 민감 → 공개 검토 전까지 repo **private** 유지.
