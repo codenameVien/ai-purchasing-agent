@@ -25,6 +25,10 @@ def call_backend(body: dict) -> str:
     backend = os.environ.get("PROXY_BACKEND", "mock")
     if backend == "mock":
         return f"[mock-backend echo for {body.get('model','?')}] {_last_user(body)[:300]}"
+    if backend == "mock_bad":
+        # Demo fixture: a junk/refusal response, to exercise the judge -> ERC-8004
+        # reputation feedback path without a real model.
+        return "As an AI, I cannot help with that."
     if backend == "ollama":
         return _ollama(body)
     if backend == "openrouter_free":

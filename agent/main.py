@@ -12,7 +12,10 @@ from __future__ import annotations
 import argparse
 import os
 
+from reputation.feedback import give_feedback
+
 from .catalog import Catalog
+from .judge import judge
 from .payer import SpendGuard, SpendingError, pay_and_call
 from .selector import Ranked, fetch_scores, select
 
@@ -25,7 +28,8 @@ def explain(ranked: list[Ranked]) -> str:
     return "\n".join(lines)
 
 
-def run(prompt: str, priorities, use_live: bool = False) -> dict:
+def run(prompt: str, priorities, use_live: bool = False,
+        min_quality: float = 0.5, judge_mode: str = "heuristic") -> dict:
     catalog = Catalog.load()
     scores = fetch_scores(use_live=use_live)
     ranked = select(priorities, scores, catalog)
@@ -55,8 +59,20 @@ def run(prompt: str, priorities, use_live: bool = False) -> dict:
         tag = "MOCK tx" if receipt.mock else "tx"
         print(f"\n[paid {receipt.paid_usdc} USDC | {tag} {receipt.tx_hash}]")
     print(f"\n--- Result ---\n{content}")
+
+    # Judge the result; record ERC-8004 reputation feedback if it was bad.
+    verdict = judge(prompt, content, mode=judge_mode, min_acceptable=min_quality)
+    print(f"\n[quality: {verdict.label} {verdict.score:.2f}"
+          + (f" — {', '.join(verdict.reasons)}" if verdict.reasons else "") + "]")
+    feedback = None
+    if verdict.is_bad:
+        agent_id = f"{winner.entry.seller}:{winner.entry.model_id}"
+        feedback = give_feedback(agent_id, verdict.score, label="bad", reasons=verdict.reasons)
+        tag = "MOCK fb tx" if feedback.mock else "fb tx"
+        print(f"[reputation: ERC-8004 giveFeedback recorded for {agent_id} | {tag} {feedback.tx_hash}]")
+
     return {"selected": winner.entry.aa_slug, "seller": winner.entry.seller,
-            "result": content, "receipt": receipt}
+            "result": content, "receipt": receipt, "verdict": verdict, "feedback": feedback}
 
 
 def main():
@@ -65,8 +81,12 @@ def main():
     ap.add_argument("--priority", nargs="+", default=["balanced"],
                     help="one or more: intelligence coding agentic cheap fast balanced")
     ap.add_argument("--live", action="store_true", help="fetch live AA scores (needs AA_API_KEY)")
+    ap.add_argument("--min-quality", type=float, default=0.5,
+                    help="below this score the result is judged bad -> reputation feedback")
+    ap.add_argument("--judge", default="heuristic", choices=["heuristic", "llm"])
     args = ap.parse_args()
-    run(args.prompt, args.priority, use_live=args.live)
+    run(args.prompt, args.priority, use_live=args.live,
+        min_quality=args.min_quality, judge_mode=args.judge)
 
 
 if __name__ == "__main__":

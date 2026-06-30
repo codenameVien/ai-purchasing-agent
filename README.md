@@ -19,8 +19,8 @@
 - ✅ **Phase 1 (완료)**: 벤치마크 선택 로직. 오프라인 실행/테스트 가능.
 - ✅ **Phase 2 (완료, mock 결제)**: x402 프록시 셀러 + payer + 지출 가드레일. **HTTP 402 핸드셰이크는 진짜**, 암호화(서명/검증)만 mock. 지갑/faucet 없이 e2e 실행.
 - ✅ **Phase A (코드 완료)**: 실 x402 결제 경로. payer는 x402 v2 라이브러리 결제 세션, 셀러는 x402 미들웨어 + facilitator. 모든 심볼 설치본(x402 v2.14.0)에 import·construct 검증. **라이브 온체인 결제는 펀딩된 테스트넷 지갑 필요 → 아래 런북.**
+- ✅ **Phase 4 (완료, mock 평판)**: judge(결과 품질 평가) → 나쁘면 ERC-8004 `giveFeedback` 기록. mock=로컬 원장, real=Reputation Registry(`0x8004B663…`, Base Sepolia, 지갑 필요). 전체 루프 e2e.
 - ⬜ Phase 3: Heurist 실셀러 편입.
-- ⬜ Phase 4: ERC-8004 평판 피드백 (확장).
 - ⬜ Phase 5: 프록시 백엔드를 실제 Claude/OpenAI 키로 교체, 최종 데모.
 
 ## 실행 (Phase 2, mock e2e)
@@ -31,8 +31,10 @@ X402_MODE=mock PROXY_BACKEND=mock uvicorn seller_proxy.main:app --port 8402
 X402_MODE=mock python -m agent.main --prompt "Write binary search in Rust" --priority coding
 python scripts/demo.py
 ```
-출력: 선택 모델 + 이유, `[paid N USDC | MOCK tx 0x...]`, 결과물.
+출력: 선택 모델 + 이유, `[paid N USDC | MOCK tx 0x...]`, 결과물, 품질 평가.
 mock 모드에선 모든 셀러가 로컬 프록시로 라우팅됨(실 Heurist는 실결제 필요 → Phase A).
+
+평판 루프 보기(나쁜 결과 → ERC-8004 기록): 프록시를 `PROXY_BACKEND=mock_bad`로 띄우면 셀러가 거부 응답 → judge가 bad 판정 → `giveFeedback` 원장(`data/reputation_ledger.json`) 기록.
 
 ## 실행 (Phase A, 실 온체인 결제 — 테스트넷)
 사전: `pip install "x402[evm]"`. 지갑 준비 + Base Sepolia USDC faucet([faucet.circle.com](https://faucet.circle.com)). 공개 facilitator 사용 시 CDP 키 불필요.
