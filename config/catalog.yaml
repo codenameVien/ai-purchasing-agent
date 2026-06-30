@@ -1,0 +1,47 @@
+# Which benchmark models can the agent actually BUY via x402, and from whom.
+# Selection candidates = intersection(AA scores, this catalog).
+# aa_slug must match the slug in the live AA API response.
+
+models:
+  # --- Open models: real x402 seller (Heurist) ---
+  - aa_slug: llama-3.3-70b
+    seller: heurist
+    seller_url: https://llm-gateway.heurist.xyz/v1/chat/completions  # verify exact endpoint
+    model_id: meta-llama/llama-3.3-70b-instruct                      # verify Heurist model id
+    price_usdc_per_call: 0.002
+
+  - aa_slug: qwen-2.5-72b
+    seller: heurist
+    seller_url: https://llm-gateway.heurist.xyz/v1/chat/completions
+    model_id: qwen/qwen-2.5-72b-instruct
+    price_usdc_per_call: 0.002
+
+  - aa_slug: deepseek-v3
+    seller: heurist
+    seller_url: https://llm-gateway.heurist.xyz/v1/chat/completions
+    model_id: deepseek/deepseek-v3
+    price_usdc_per_call: 0.003
+
+  # --- Frontier models: self-built x402 proxy (dev=free backend, final=real key) ---
+  - aa_slug: gpt-4o
+    seller: proxy
+    seller_url: http://localhost:8402/inference
+    model_id: gpt-4o
+    price_usdc_per_call: 0.02
+
+  - aa_slug: claude-3-7-sonnet
+    seller: proxy
+    seller_url: http://localhost:8402/inference
+    model_id: claude-3-7-sonnet
+    price_usdc_per_call: 0.025
+
+# Priority label -> weight vector over selection metrics.
+# Metrics: intelligence, coding, agentic (higher=better),
+#          cheap (lower price=better), fast (higher tps=better).
+priority_presets:
+  intelligence: {intelligence: 1.0}
+  coding:       {coding: 1.0}
+  agentic:      {agentic: 1.0}
+  cheap:        {cheap: 1.0}
+  fast:         {fast: 1.0}
+  balanced:     {intelligence: 0.4, coding: 0.3, cheap: 0.2, fast: 0.1}
