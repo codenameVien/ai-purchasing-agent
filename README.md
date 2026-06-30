@@ -11,16 +11,20 @@
                  →  (확장) [reputation] 결과 나쁘면 ERC-8004 giveFeedback
 ```
 
-판매자(seller) 2종:
-- **Heurist** — 실제 x402 셀러, 오픈모델(Llama/Qwen/DeepSeek).
-- **자체 x402 프록시** — 프론티어 모델(GPT/Claude)을 x402로 감쌈. 백엔드 교체식: 개발=무료 오픈모델, 최종=실제 API 키.
+판매자(seller): **자체 x402 프록시** 1종. 모든 LLM 추론을 x402로 우리 프록시에 결제하고,
+실제 모델은 `backend`(heurist/openrouter/anthropic/openai)가 수행. 개발=무료/mock, 최종=실키.
+
+> 생태계 현실(2026): **테스트넷에서 pay-per-token LLM을 x402로 파는 제3자 셀러는 없다.**
+> Heurist의 x402는 Base 메인넷에서 Mesh 에이전트 *툴*을 팔고(실 USDC), LLM 게이트웨이는
+> API키 인증이라 x402 아님. 그래서 프록시가 테스트넷 x402 LLM 셀러의 유일 경로.
+> 단, 버이어가 진짜 제3자 x402 402를 파싱함은 검증됨 → `python scripts/probe_real_402.py`.
 
 ## 현재 상태
 - ✅ **Phase 1 (완료)**: 벤치마크 선택 로직. 오프라인 실행/테스트 가능.
 - ✅ **Phase 2 (완료, mock 결제)**: x402 프록시 셀러 + payer + 지출 가드레일. **HTTP 402 핸드셰이크는 진짜**, 암호화(서명/검증)만 mock. 지갑/faucet 없이 e2e 실행.
 - ✅ **Phase A (코드 완료)**: 실 x402 결제 경로. payer는 x402 v2 라이브러리 결제 세션, 셀러는 x402 미들웨어 + facilitator. 모든 심볼 설치본(x402 v2.14.0)에 import·construct 검증. **라이브 온체인 결제는 펀딩된 테스트넷 지갑 필요 → 아래 런북.**
 - ✅ **Phase 4 (완료, mock 평판)**: judge(결과 품질 평가) → 나쁘면 ERC-8004 `giveFeedback` 기록. mock=로컬 원장, real=Reputation Registry(`0x8004B663…`, Base Sepolia, 지갑 필요). 전체 루프 e2e.
-- ⬜ Phase 3: Heurist 실셀러 편입.
+- ✅ **Phase 3 (정정)**: Heurist는 테스트넷 x402 LLM 셀러 아님(메인넷 툴 셀러)으로 검증 → 오픈모델은 프록시 `heurist` 백엔드로 편입. 버이어가 라이브 실 x402 402 파싱함 검증(`scripts/probe_real_402.py`).
 - ⬜ Phase 5: 프록시 백엔드를 실제 Claude/OpenAI 키로 교체, 최종 데모.
 
 ## 실행 (Phase 2, mock e2e)
@@ -82,7 +86,8 @@ pytest tests/ -q
 
 ## 검증 상태
 해소됨: x402 Python API(v2.14.0 introspect 검증), 네트워크 id(`eip155:84532`), Base Sepolia USDC(`0x036C…CF7e`), 공개 facilitator URL.
+Heurist 라이브 검증됨: x402=메인넷 Mesh 툴(LLM 아님), LLM 게이트웨이=API키. 봉투 v1.
 남음 (각 Phase에서):
-- Heurist 정확한 x402 엔드포인트·모델 id (Phase 3)
 - CDP facilitator JWT 헤더 wiring (`cdp-sdk`, 선택)
 - AA `/free` 실응답에서 `config/scores_cache.json` slug 정합성 (`--live`)
+- Heurist `qwen` 모델 id (supported-models에서 미확인)

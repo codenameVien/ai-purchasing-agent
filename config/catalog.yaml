@@ -2,36 +2,45 @@
 # Selection candidates = intersection(AA scores, this catalog).
 # aa_slug must match the slug in the live AA API response.
 
+# All LLM inference is x402-paid to OUR proxy (testnet). `backend` = who fulfills it.
+# Reason: as of 2026 NO third-party sells pay-per-token LLM chat via x402 on testnet.
+# Heurist's x402 sells Mesh agent *tools* on Base MAINNET (real USDC), and its LLM
+# gateway is API-key only — so Heurist open models are just a proxy backend here.
 models:
-  # --- Open models: real x402 seller (Heurist) ---
+  # --- Open models: fulfilled via Heurist LLM gateway (API-key backend) ---
   - aa_slug: llama-3.3-70b
-    seller: heurist
-    seller_url: https://llm-gateway.heurist.xyz/v1/chat/completions  # verify exact endpoint
-    model_id: meta-llama/llama-3.3-70b-instruct                      # verify Heurist model id
+    seller: proxy
+    seller_url: http://localhost:8402/inference
+    backend: heurist
+    model_id: meta-llama/llama-3.3-70b-instruct        # verified in Heurist supported-models
     price_usdc_per_call: 0.002
 
   - aa_slug: qwen-2.5-72b
-    seller: heurist
-    seller_url: https://llm-gateway.heurist.xyz/v1/chat/completions
-    model_id: qwen/qwen-2.5-72b-instruct
+    seller: proxy
+    seller_url: http://localhost:8402/inference
+    backend: heurist
+    model_id: qwen/qwen-2.5-72b-instruct               # UNVERIFIED in Heurist catalog — check
     price_usdc_per_call: 0.002
 
   - aa_slug: deepseek-v3
-    seller: heurist
-    seller_url: https://llm-gateway.heurist.xyz/v1/chat/completions
-    model_id: deepseek/deepseek-v3
+    seller: proxy
+    seller_url: http://localhost:8402/inference
+    backend: heurist
+    model_id: deepseek/deepseek-v3                      # verified in Heurist supported-models
     price_usdc_per_call: 0.003
 
-  # --- Frontier models: self-built x402 proxy (dev=free backend, final=real key) ---
+  # --- Frontier models: proxy backend = real key (dev uses free/mock backend) ---
   - aa_slug: gpt-4o
     seller: proxy
     seller_url: http://localhost:8402/inference
+    backend: openai
     model_id: gpt-4o
     price_usdc_per_call: 0.02
 
   - aa_slug: claude-3-7-sonnet
     seller: proxy
     seller_url: http://localhost:8402/inference
+    backend: anthropic
     model_id: claude-3-7-sonnet
     price_usdc_per_call: 0.025
 

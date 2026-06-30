@@ -2,10 +2,16 @@
 
 Selected by env PROXY_BACKEND:
   mock           -> echo (no key, offline; default for Phase 2)
+  mock_bad       -> refusal string (demo fixture for the reputation loop)
   ollama         -> local Ollama (free, http://localhost:11434)
   openrouter_free-> OpenRouter free-tier models (OPENROUTER_API_KEY)
+  heurist        -> Heurist LLM gateway (HEURIST_API_KEY; API-key auth, NOT x402)
   anthropic      -> Claude (ANTHROPIC_API_KEY)   [Phase 5 final test]
   openai         -> GPT (OPENAI_API_KEY)          [Phase 5 final test]
+
+Note: Heurist's x402 path sells Mesh agent *tools* on Base mainnet, not LLM chat.
+Its LLM inference is API-key only — so Heurist open models are fulfilled here as a
+proxy backend, and the x402 payment is made to OUR proxy (testnet), not to Heurist.
 
 call_backend(body) takes an OpenAI-style chat body and returns assistant text.
 """
@@ -34,6 +40,9 @@ def call_backend(body: dict) -> str:
     if backend == "openrouter_free":
         return _openai_compatible(body, "https://openrouter.ai/api/v1/chat/completions",
                                   os.environ.get("OPENROUTER_API_KEY"))
+    if backend == "heurist":
+        return _openai_compatible(body, "https://llm-gateway.heurist.xyz/v1/chat/completions",
+                                  os.environ.get("HEURIST_API_KEY"))
     if backend == "openai":
         return _openai_compatible(body, "https://api.openai.com/v1/chat/completions",
                                   os.environ.get("OPENAI_API_KEY"))
