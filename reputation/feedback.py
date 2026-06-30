@@ -59,7 +59,10 @@ def give_feedback(agent_id: str, score: float, *, label: str, reasons: list[str]
                   mode: str | None = None, network: str | None = None,
                   ledger_path: str | None = None) -> Feedback:
     """Record reputation feedback for a seller. Returns the Feedback receipt."""
-    mode = mode or os.environ.get("X402_MODE", "mock")
+    # Reputation mode is independent of payment mode, so a live x402 payment run
+    # (X402_MODE=real) keeps recording feedback to the local ledger unless you
+    # explicitly opt into on-chain giveFeedback via REPUTATION_MODE=real.
+    mode = mode or os.environ.get("REPUTATION_MODE", "mock")
     network = network or os.environ.get("X402_NETWORK", "eip155:84532")
     value, decimals = _encode_score(score)
 
