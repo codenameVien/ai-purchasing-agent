@@ -23,6 +23,7 @@ from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
 from x402.http.facilitator_client_base import CreateHeadersAuthProvider
 from x402.http.middleware.fastapi import PaymentMiddlewareASGI
 from x402.http.types import RouteConfig
+from x402.mechanisms.evm.exact import register_exact_evm_server
 from x402.server import x402ResourceServer
 
 from .backends import call_backend
@@ -70,6 +71,7 @@ def build_app() -> FastAPI:
     network = os.environ.get("X402_NETWORK", "eip155:84532")  # Base Sepolia (CAIP-2)
     price = os.environ.get("PROXY_PRICE", "$0.02")            # Money string -> network USDC
     server = x402ResourceServer(facilitator_clients=_facilitator())
+    register_exact_evm_server(server, networks=network)   # enable "exact" EVM scheme for the seller
     routes = {
         "/inference": RouteConfig(
             accepts=PaymentOption(scheme="exact", pay_to=pay_to, price=price, network=network),
