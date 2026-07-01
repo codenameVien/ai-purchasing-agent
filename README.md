@@ -4,7 +4,7 @@ An agent that, given a user request + priority, **picks the best AI model by ben
 
 > ✅ **Live-verified on Base Sepolia.** A real on-chain x402 payment settled end-to-end: benchmark selection → gasless ERC-3009 USDC transfer → result. Proof tx: [`0xabb329c2…b7a3`](https://sepolia.basescan.org/tx/0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3) (USDC moved buyer→seller, gas paid by the facilitator).
 
-*(한국어 설명은 아래 [## 한국어](#한국어) 참고.)*
+*(한국어 설명은 아래 [## 한국어](#한국어) 참고. 전체 시스템 구성도·시퀀스는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).)*
 
 ---
 
