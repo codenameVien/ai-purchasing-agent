@@ -1,11 +1,14 @@
-"""Result quality evaluation — decides whether a paid result was good enough.
+"""Machine DELIVERY check — did the seller deliver something usable at all?
 
-A bad verdict triggers an ERC-8004 reputation feedback against the seller.
+NOT a quality judge. Deciding whether an answer is *good* is a human call today
+(AI-judging-AI is circular and untrusted), so real quality comes from human 👍/👎
+(scripts/rate.py) fed to reputation. This module only catches OBVIOUS non-delivery:
+empty output, refusal, error markers, near-empty length. A bad verdict records an
+`source="auto"` reputation signal; humans add the `source="human"` quality signal.
 
-mode="heuristic" (default): cheap offline signals (empty / error / refusal / length).
-mode="llm": an LLM-judge scores the answer — wire in a model call later. The
-heuristic is intentionally crude; it exists so the select->pay->judge->feedback
-loop is demonstrable without a wallet or a judge model.
+mode="heuristic" (default): the cheap mechanical checks below.
+mode="llm": reserved — an LLM delivery/quality check, wire later (kept a stub on
+purpose; see docs/ROADMAP.md G for why AI quality-judging is deferred).
 """
 from __future__ import annotations
 

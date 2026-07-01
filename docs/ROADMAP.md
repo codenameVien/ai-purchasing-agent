@@ -61,8 +61,8 @@
 
 > 결론: **AI가 품질 심판 ❌**(지금 시대 순환·불신). **사람 좋아요/싫어요 → 평판 ⭕**. 단 per-call 게이트 아니라 **사후 비동기**(우버 별점처럼) — 자율 M2M 유지.
 
-- [ ] **judge 축소**: "고장 체크" 기계 필터로만(빈값·에러·타임아웃, AI 판정 아님). LLM-judge 야망은 보류.
-- [ ] **품질 평가 = 사람 피드백(좋아요/싫어요)** → reputation으로. 사후 비동기. **이게 곧 ERC-8004 giveFeedback(구매자 사람이 남기는 평판)과 일치** — 프로토콜 의도대로.
+- [x] **judge 축소** ✅ 배달 체크(기계 필터)로 역할 재정의(docstring). 품질심판 아님 명시. LLM 모드는 의도적 스텁.
+- [x] **품질 평가 = 사람 피드백(좋아요/싫어요)** ✅ `scripts/rate.py <seller> up|down` → reputation(source="human"). 사후 비동기(우버 별점). 데모: 사람 👎 gamma → 다음 선택서 gamma 회피. 피드백에 source(auto/human) 구분.
 - [ ] **객관 검증 우선**: 검증 가능한 태스크(코드=테스트 통과, 수학=검산)는 사람·AI 없이 기계적 참/거짓. 가능하면 이걸 최우선.
 - [ ] **사람 = 감독층**(전수 아님): 샘플링·분쟁해결·자동필터 보정. per-call 검수공 아님.
 - 참고: 검수(judge, 이번 결과) ≠ 감사(reputation, 셀러 이력). 검수는 감사에 넣을 신호 생성기.
@@ -71,7 +71,7 @@
 
 - [x] **평판 → selector 반영 (루프 완성)** ✅ 구현됨. `load_reputation()`이 원장 집계 → `select(reputation=..., reputation_weight=)`가 factor 적용해 나쁜 셀러 하락. 라이브 데모: 1회차 bad → 2회차 그 셀러 점수 하락. (default weight 0.5 = 수정자, 높이면 winner flip)
 - [ ] **온체인 giveFeedback 실구현**: `_give_feedback_real` 스텁 → web3 컨트랙트 호출. 셀러 ERC-721 Identity 등록(agentId), client-auth 서명(EIP-191/1271), Draft ABI 확인.
-- [ ] **입력원 = 사람 좋아요/싫어요**: 지금 judge(자동)가 먹임 → 사람 피드백 UI로 전환(G 전략). give_feedback 인터페이스는 재사용.
+- [x] **입력원 = 사람 좋아요/싫어요** ✅ `scripts/rate.py`로 사람 👍/👎(source="human"). judge(auto)는 배달실패만. 둘 다 같은 reputation으로. (UI화·human 가중은 남음)
 
 ## E. 기타 (teardown 진행하며 추가 예정)
 

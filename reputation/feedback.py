@@ -33,7 +33,7 @@ _LEDGER_PATH = os.environ.get(
 
 @dataclass
 class Feedback:
-    agent_id: str          # seller agent id (mock: "seller:model_id"; real: ERC-721 tokenId)
+    agent_id: str          # seller agent id (mock: seller_id; real: ERC-721 tokenId)
     value: int             # score, encoded with value_decimals
     value_decimals: int
     tag1: str              # e.g. "quality"
@@ -41,6 +41,7 @@ class Feedback:
     reasons: list[str]
     tx_hash: str
     mock: bool
+    source: str = "auto"   # "auto" = machine delivery-check (judge); "human" = user 👍/👎
 
 
 def _encode_score(score_0_1: float) -> tuple[int, int]:
@@ -75,9 +76,13 @@ def load_reputation(ledger_path: str | None = None) -> dict[str, dict]:
 
 
 def give_feedback(agent_id: str, score: float, *, label: str, reasons: list[str],
-                  mode: str | None = None, network: str | None = None,
+                  source: str = "auto", mode: str | None = None, network: str | None = None,
                   ledger_path: str | None = None) -> Feedback:
-    """Record reputation feedback for a seller. Returns the Feedback receipt."""
+    """Record reputation feedback for a seller. Returns the Feedback receipt.
+
+    source: "auto" (machine delivery-check via judge) or "human" (user 👍/👎).
+    Quality is a human call — the auto signal only catches obvious non-delivery.
+    """
     # Reputation mode is independent of payment mode, so a live x402 payment run
     # (X402_MODE=real) keeps recording feedback to the local ledger unless you
     # explicitly opt into on-chain giveFeedback via REPUTATION_MODE=real.
@@ -86,13 +91,13 @@ def give_feedback(agent_id: str, score: float, *, label: str, reasons: list[str]
     value, decimals = _encode_score(score)
 
     if mode == "real":
-        return _give_feedback_real(agent_id, value, decimals, label, reasons, network)
+        return _give_feedback_real(agent_id, value, decimals, label, reasons, network, source)
 
     # mock: deterministic fake tx + append to local ledger
-    digest = hashlib.sha256(f"{agent_id}|{value}|{label}|{';'.join(reasons)}".encode()).hexdigest()
+    digest = hashlib.sha256(f"{agent_id}|{value}|{label}|{source}|{';'.join(reasons)}".encode()).hexdigest()
     fb = Feedback(agent_id=agent_id, value=value, value_decimals=decimals,
                   tag1="quality", tag2=label, reasons=list(reasons),
-                  tx_hash="0xMOCKFB" + digest[:56], mock=True)
+                  tx_hash="0xMOCKFB" + digest[:56], mock=True, source=source)
     path = ledger_path or _LEDGER_PATH
     os.makedirs(os.path.dirname(path), exist_ok=True)
     ledger = _load_ledger(path)
@@ -103,7 +108,8 @@ def give_feedback(agent_id: str, score: float, *, label: str, reasons: list[str]
 
 
 def _give_feedback_real(agent_id: str, value: int, decimals: int,
-                        label: str, reasons: list[str], network: str) -> Feedback:
+                        label: str, reasons: list[str], network: str,
+                        source: str = "auto") -> Feedback:
     """Call ERC-8004 Reputation Registry giveFeedback on-chain. Needs a funded wallet.
 
     Verify the ABI/param order against ERC8004SPEC.md + the live contract before use;

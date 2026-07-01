@@ -78,7 +78,8 @@ def run(prompt: str, priorities=None, use_live: bool = False,
     feedback = None
     if verdict.is_bad:
         agent_id = winner.entry.seller_id          # reputation is per-seller
-        feedback = give_feedback(agent_id, verdict.score, label="bad", reasons=verdict.reasons)
+        feedback = give_feedback(agent_id, verdict.score, label="bad",
+                                 reasons=verdict.reasons, source="auto")   # machine delivery-check
         tag = "MOCK fb tx" if feedback.mock else "fb tx"
         print(f"[reputation: ERC-8004 giveFeedback recorded for {agent_id} | {tag} {feedback.tx_hash}]")
 

@@ -66,6 +66,24 @@ def test_reputation_downranks_bad_seller(tmp_path):
     assert ranked[0].entry.aa_slug != "claude-opus-4-8"  # bad rep flipped the winner
 
 
+def test_human_rating_feeds_reputation(tmp_path):
+    ledger = str(tmp_path / "ledger.json")
+    up = give_feedback("alpha", 1.0, label="human_good", reasons=["nice"],
+                       source="human", mode="mock", ledger_path=ledger)
+    down = give_feedback("beta", 0.0, label="human_bad", reasons=["junk"],
+                         source="human", mode="mock", ledger_path=ledger)
+    assert up.source == "human" and down.source == "human"
+    rep = load_reputation(ledger)
+    assert rep["alpha"]["rep"] == 1.0     # 👍 -> full reputation
+    assert rep["beta"]["rep"] == 0.0      # 👎 -> zero reputation
+
+
+def test_auto_source_default(tmp_path):
+    ledger = str(tmp_path / "ledger.json")
+    fb = give_feedback("gamma", 0.2, label="bad", reasons=["x"], mode="mock", ledger_path=ledger)
+    assert fb.source == "auto"            # judge-driven feedback defaults to machine
+
+
 def test_feedback_appends(tmp_path):
     ledger = str(tmp_path / "ledger.json")
     give_feedback("a:1", 0.1, label="bad", reasons=["x"], mode="mock", ledger_path=ledger)
