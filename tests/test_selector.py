@@ -31,7 +31,18 @@ def test_priority_changes_winner():
     assert cheap_winner.entry.aa_slug == "llama-3.3-70b"
     # Best coding index (Opus 4.8, 60) must win on 'coding'.
     assert coding_winner.entry.aa_slug == "claude-opus-4-8"
-    assert cheap_winner.entry.aa_slug != coding_winner.entry.aa_slug
+
+
+def test_sellers_compete_on_price_vs_speed():
+    """Same model, different sellers: cheapest ≠ fastest (price↔speed tradeoff)."""
+    catalog, scores = _setup()
+    cheap = select("cheap", scores, catalog)[0]
+    fast = select("fast", scores, catalog)[0]
+    # both are Llama offers but from different sellers
+    assert cheap.entry.aa_slug == "llama-3.3-70b" and fast.entry.aa_slug == "llama-3.3-70b"
+    assert cheap.entry.seller_id == "gamma"   # cheapest, slow
+    assert fast.entry.seller_id == "alpha"    # priciest, fastest
+    assert cheap.entry.seller_id != fast.entry.seller_id
 
 
 def test_deterministic():

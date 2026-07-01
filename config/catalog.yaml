@@ -9,28 +9,31 @@
 offers:
   # --- Llama 3.3: THREE competing sellers (same model, different price) ---
   - aa_slug: llama-3.3-70b
-    seller_id: alpha
+    seller_id: alpha                   # priciest but FASTEST GPU
     seller: proxy
     seller_url: http://localhost:8402/inference
     backend: heurist
     model_id: meta-llama/llama-3.3-70b-instruct
     price_usdc_per_call: 0.0020
+    speed_tps: 90
 
   - aa_slug: llama-3.3-70b
-    seller_id: beta                    # same Llama, cheaper seller
+    seller_id: beta                    # mid price, mid speed
     seller: proxy
     seller_url: http://localhost:8402/inference
     backend: heurist
     model_id: meta-llama/llama-3.3-70b-instruct
     price_usdc_per_call: 0.0015
+    speed_tps: 60
 
   - aa_slug: llama-3.3-70b
-    seller_id: gamma                   # same Llama, cheapest seller
+    seller_id: gamma                   # cheapest but SLOWEST (price↔speed tradeoff)
     seller: proxy
     seller_url: http://localhost:8402/inference
     backend: heurist
     model_id: meta-llama/llama-3.3-70b-instruct
     price_usdc_per_call: 0.0012
+    speed_tps: 35
 
   # --- DeepSeek: two sellers ---
   - aa_slug: deepseek-v3

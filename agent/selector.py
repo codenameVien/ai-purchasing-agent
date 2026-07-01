@@ -158,6 +158,8 @@ def select(priorities, scores: list[ModelScore], catalog: Catalog,
             continue                                  # no benchmark score -> not buyable
         raw = dict(model.raw)                          # intelligence/coding/agentic/speed
         raw["price"] = o.price_usdc_per_call           # override: compare SELLER prices
+        if o.speed_tps is not None:
+            raw["speed"] = o.speed_tps                 # override: compare SELLER speeds
         offer_raw.append((o, model.name, raw))
     if not offer_raw:
         return []

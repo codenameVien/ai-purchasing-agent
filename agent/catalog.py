@@ -25,6 +25,7 @@ class CatalogEntry:
     model_id: str          # provider-side model id sent in the request
     price_usdc_per_call: float
     backend: str = "mock"  # who fulfills inference: mock | heurist | openrouter_free | anthropic | openai
+    speed_tps: float | None = None  # per-seller speed (tokens/s); overrides model's benchmark speed
 
 
 class Catalog:
@@ -45,6 +46,7 @@ class Catalog:
                 model_id=m["model_id"],
                 price_usdc_per_call=float(m["price_usdc_per_call"]),
                 backend=m.get("backend", "mock"),
+                speed_tps=(float(m["speed_tps"]) if m.get("speed_tps") is not None else None),
             )
             for m in raw.get("offers", [])
         ]

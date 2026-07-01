@@ -22,11 +22,12 @@ from .selector import Ranked, fetch_scores, select
 
 
 def explain(ranked: list[Ranked]) -> str:
-    lines = [f"{'model':<20} {'seller':<15} {'$/call':>7} {'score':>6} {'rep':>5}"]
+    lines = [f"{'model':<20} {'seller':<15} {'$/call':>7} {'tps':>4} {'score':>6} {'rep':>5}"]
     for r in ranked:
         rep = "-" if r.reputation is None else f"{r.reputation:.2f}"
+        tps = "-" if r.entry.speed_tps is None else f"{r.entry.speed_tps:.0f}"
         lines.append(f"{r.name:<20} {r.entry.seller_id:<15} {r.entry.price_usdc_per_call:>7.4f} "
-                     f"{r.score:>6.3f} {rep:>5}")
+                     f"{tps:>4} {r.score:>6.3f} {rep:>5}")
     return "\n".join(lines)
 
 
