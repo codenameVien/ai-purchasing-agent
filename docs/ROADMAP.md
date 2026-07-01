@@ -25,8 +25,8 @@
 
 ## B. selector (선택) — 자연어 우선순위
 
-- [ ] **NL 프롬프트 → 우선순위 자동 추론**: 지금은 `--priority coding` 명시 필요. 자연어("러스트 코드 짜줘")를 LLM이 분석 → coding 우선순위 자동 생성. `--priority` 없이 작동.
-- [ ] 현재: prompt(작업 텍스트)는 selector가 안 읽음. 모델 고른 뒤 그 모델한테 던질 뿐. NL 추론 붙이면 prompt도 선택에 반영.
+- [x] **NL 프롬프트 → 우선순위 자동 추론 (룰 기반)** ✅ `agent/nl_priority.py`. 키워드 매칭(KR+EN)으로 자연어→우선순위. `--priority` 생략 시 prompt에서 추론. 데모: "Rust 코드"→coding, "빠르고 저렴"→cheap+fast.
+- [ ] **LLM 기반 추론으로 업그레이드**: 룰(키워드)은 한계 → 진짜 이해는 LLM 분류. `infer_priorities(mode="llm")` 스텁 있음. 키 붙이면 교체.
 
 ---
 

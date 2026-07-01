@@ -16,6 +16,7 @@ from reputation.feedback import give_feedback, load_reputation
 
 from .catalog import Catalog
 from .judge import judge
+from .nl_priority import infer_priorities
 from .payer import SpendGuard, SpendingError, pay_and_call
 from .selector import Ranked, fetch_scores, select
 
@@ -29,8 +30,11 @@ def explain(ranked: list[Ranked]) -> str:
     return "\n".join(lines)
 
 
-def run(prompt: str, priorities, use_live: bool = False,
+def run(prompt: str, priorities=None, use_live: bool = False,
         min_quality: float = 0.5, judge_mode: str = "heuristic") -> dict:
+    if not priorities:                                   # no explicit --priority -> infer from prompt
+        priorities = infer_priorities(prompt)
+        print(f"[inferred priorities from prompt: {priorities}]")
     catalog = Catalog.load()
     scores = fetch_scores(use_live=use_live)
     reputation = load_reputation()                       # past feedback → down-rank bad sellers
@@ -84,8 +88,9 @@ def run(prompt: str, priorities, use_live: bool = False,
 def main():
     ap = argparse.ArgumentParser(description="x402 AI purchasing agent (Phase 1: selection)")
     ap.add_argument("--prompt", required=True, help="the task to send to the chosen model")
-    ap.add_argument("--priority", nargs="+", default=["balanced"],
-                    help="one or more: intelligence coding agentic cheap fast balanced")
+    ap.add_argument("--priority", nargs="+", default=None,
+                    help="one or more: intelligence coding agentic cheap fast balanced. "
+                         "Omit to infer from the prompt (natural language).")
     ap.add_argument("--live", action="store_true", help="fetch live AA scores (needs AA_API_KEY)")
     ap.add_argument("--min-quality", type=float, default=0.5,
                     help="below this score the result is judged bad -> reputation feedback")
