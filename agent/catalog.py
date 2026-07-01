@@ -1,6 +1,8 @@
-"""Catalog: which benchmark models the agent can buy via x402, and from whom.
+"""Catalog: the offers the agent can buy — each offer is a (seller × model) pair.
 
-Selection candidates = intersection(AA benchmark scores, this catalog).
+Multiple sellers may offer the SAME benchmark model (aa_slug) at different prices
+and reputations (open models are resold by anyone). Selection picks the best
+*offer*, not just the best model. Candidates = offers whose aa_slug has a score.
 """
 from __future__ import annotations
 
@@ -15,39 +17,44 @@ _CATALOG_PATH = os.path.join(_CONFIG_DIR, "catalog.yaml")
 
 @dataclass(frozen=True)
 class CatalogEntry:
-    aa_slug: str
-    seller: str            # "heurist" | "proxy"
+    """One offer = a seller selling a specific model at a price."""
+    aa_slug: str           # benchmark model id (maps to AA scores)
+    seller_id: str         # unique seller identity — reputation is keyed on this
+    seller: str            # seller kind, for display ("proxy" | "heurist" | ...)
     seller_url: str
-    model_id: str          # provider-side model id to send in the request
+    model_id: str          # provider-side model id sent in the request
     price_usdc_per_call: float
     backend: str = "mock"  # who fulfills inference: mock | heurist | openrouter_free | anthropic | openai
 
 
 class Catalog:
-    def __init__(self, entries: dict[str, CatalogEntry], priority_presets: dict[str, dict[str, float]]):
-        self.entries = entries
+    def __init__(self, offers: list[CatalogEntry], priority_presets: dict[str, dict[str, float]]):
+        self.offers = offers
         self.priority_presets = priority_presets
 
     @classmethod
     def load(cls, path: str = _CATALOG_PATH) -> "Catalog":
         with open(path, "r", encoding="utf-8") as f:
             raw = yaml.safe_load(f)
-        entries = {
-            m["aa_slug"]: CatalogEntry(
+        offers = [
+            CatalogEntry(
                 aa_slug=m["aa_slug"],
-                seller=m["seller"],
+                seller_id=m["seller_id"],
+                seller=m.get("seller", "proxy"),
                 seller_url=m["seller_url"],
                 model_id=m["model_id"],
                 price_usdc_per_call=float(m["price_usdc_per_call"]),
                 backend=m.get("backend", "mock"),
             )
-            for m in raw.get("models", [])
-        }
+            for m in raw.get("offers", [])
+        ]
         presets = raw.get("priority_presets", {})
-        return cls(entries, presets)
+        return cls(offers, presets)
 
-    def buyable_slugs(self) -> set[str]:
-        return set(self.entries.keys())
+    def aa_slugs(self) -> set[str]:
+        """Benchmark models present in the catalog (some may have multiple sellers)."""
+        return {o.aa_slug for o in self.offers}
 
-    def get(self, slug: str) -> CatalogEntry | None:
-        return self.entries.get(slug)
+    def get(self, aa_slug: str) -> CatalogEntry | None:
+        """First offer for a benchmark model (convenience; selection uses .offers)."""
+        return next((o for o in self.offers if o.aa_slug == aa_slug), None)

@@ -22,11 +22,11 @@ from .selector import Ranked, fetch_scores, select
 
 
 def explain(ranked: list[Ranked]) -> str:
-    lines = [f"{'model':<22} {'seller':<8} {'score':>6} {'rep':>5}  contributions"]
+    lines = [f"{'model':<20} {'seller':<15} {'$/call':>7} {'score':>6} {'rep':>5}"]
     for r in ranked:
-        contrib = ", ".join(f"{k}={v:.2f}" for k, v in sorted(r.metric_contrib.items()))
         rep = "-" if r.reputation is None else f"{r.reputation:.2f}"
-        lines.append(f"{r.name:<22} {r.entry.seller:<8} {r.score:>6.3f} {rep:>5}  {contrib}")
+        lines.append(f"{r.name:<20} {r.entry.seller_id:<15} {r.entry.price_usdc_per_call:>7.4f} "
+                     f"{r.score:>6.3f} {rep:>5}")
     return "\n".join(lines)
 
 
@@ -45,7 +45,7 @@ def run(prompt: str, priorities=None, use_live: bool = False,
     winner = ranked[0]
     print(f"Priorities: {priorities}")
     print(explain(ranked))
-    print(f"\n=> SELECTED: {winner.name} via {winner.entry.seller} "
+    print(f"\n=> SELECTED: {winner.name} from seller '{winner.entry.seller_id}' "
           f"(~{winner.entry.price_usdc_per_call} USDC/call)")
 
     # Pay-per-call via x402. In mock mode every seller is routed to the local
@@ -76,7 +76,7 @@ def run(prompt: str, priorities=None, use_live: bool = False,
           + (f" — {', '.join(verdict.reasons)}" if verdict.reasons else "") + "]")
     feedback = None
     if verdict.is_bad:
-        agent_id = f"{winner.entry.seller}:{winner.entry.model_id}"
+        agent_id = winner.entry.seller_id          # reputation is per-seller
         feedback = give_feedback(agent_id, verdict.score, label="bad", reasons=verdict.reasons)
         tag = "MOCK fb tx" if feedback.mock else "fb tx"
         print(f"[reputation: ERC-8004 giveFeedback recorded for {agent_id} | {tag} {feedback.tx_hash}]")

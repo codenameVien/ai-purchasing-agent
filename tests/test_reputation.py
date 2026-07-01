@@ -50,11 +50,12 @@ def test_reputation_downranks_bad_seller(tmp_path):
     # baseline: Claude wins on coding (best coding index)
     base = select("coding", scores, catalog)
     assert base[0].entry.aa_slug == "claude-opus-4-8"
+    claude_seller = base[0].entry.seller_id           # e.g. "anthropic-store"
 
-    # give Claude's seller repeated bad feedback
+    # give Claude's seller repeated bad feedback (reputation is per-seller)
     ledger = str(tmp_path / "ledger.json")
     for _ in range(2):
-        give_feedback("proxy:claude-opus-4-8", 0.1, label="bad",
+        give_feedback(claude_seller, 0.1, label="bad",
                       reasons=["bad result"], mode="mock", ledger_path=ledger)
     rep = load_reputation(ledger)
 

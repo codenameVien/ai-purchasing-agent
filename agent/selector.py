@@ -138,53 +138,61 @@ def _normalize(values: dict[str, float], higher_is_better: bool) -> dict[str, fl
 def select(priorities, scores: list[ModelScore], catalog: Catalog,
            reputation: dict[str, dict] | None = None,
            reputation_weight: float = 0.5) -> list[Ranked]:
-    """Rank buyable candidates (catalog ∩ scores) by weighted normalized score,
-    then apply a reputation factor so sellers with bad history sink.
+    """Rank OFFERS (seller × model) by weighted normalized score, then apply a
+    per-seller reputation factor so sellers with bad history sink.
 
-    reputation: {agent_id -> {"rep": 0..1, ...}} from reputation.load_reputation().
-    agent_id per candidate = f"{seller}:{model_id}". Unknown seller = no penalty.
-    factor = 1 - reputation_weight * (1 - rep); rep=1 -> unchanged, rep=0 -> *(1-weight).
+    Each offer's benchmark metrics (intelligence/coding/agentic/speed) come from
+    its model's AA score; the `price` metric is the OFFER's price (so two sellers
+    of the same model differ on `cheap`). Reputation is keyed on seller_id.
+    factor = 1 - reputation_weight * (1 - rep); rep=1 -> unchanged, unknown -> no penalty.
     """
     weights = weights_from_priorities(priorities, catalog)
     reputation = reputation or {}
-    buyable = catalog.buyable_slugs()
-    candidates = [s for s in scores if s.slug in buyable]
-    if not candidates:
+    scores_by_slug = {s.slug: s for s in scores}
+
+    # Build per-offer raw metrics: model benchmark + offer-specific price.
+    offer_raw: list[tuple[CatalogEntry, str, dict[str, float]]] = []
+    for o in catalog.offers:
+        model = scores_by_slug.get(o.aa_slug)
+        if model is None:
+            continue                                  # no benchmark score -> not buyable
+        raw = dict(model.raw)                          # intelligence/coding/agentic/speed
+        raw["price"] = o.price_usdc_per_call           # override: compare SELLER prices
+        offer_raw.append((o, model.name, raw))
+    if not offer_raw:
         return []
 
-    # Per-metric normalization across the candidate set only.
-    normalized: dict[str, dict[str, float]] = {}
+    # Per-metric min-max normalization across all offers (keyed by offer index).
+    normalized: dict[str, dict[int, float]] = {}
     for metric, weight in weights.items():
         if weight == 0:
             continue
         _, higher = _METRIC_FIELDS[metric]
-        raw_vals = {c.slug: c.raw[metric] for c in candidates if metric in c.raw}
-        normalized[metric] = _normalize(raw_vals, higher)
+        vals = {i: r[metric] for i, (_o, _n, r) in enumerate(offer_raw) if metric in r}
+        normalized[metric] = _normalize(vals, higher)
 
     ranked: list[Ranked] = []
-    for c in candidates:
+    for i, (o, name, raw) in enumerate(offer_raw):
         contrib: dict[str, float] = {}
         total = 0.0
         for metric, weight in weights.items():
-            n = normalized.get(metric, {}).get(c.slug)
+            n = normalized.get(metric, {}).get(i)
             if n is None:
-                continue  # model missing this metric -> contributes nothing
+                continue
             contrib[metric] = weight * n
             total += contrib[metric]
 
-        entry = catalog.get(c.slug)
-        agent_id = f"{entry.seller}:{entry.model_id}"
-        rep = reputation.get(agent_id, {}).get("rep")          # None if no history
+        rep = reputation.get(o.seller_id, {}).get("rep")   # per-seller; None if no history
         factor = 1.0 if rep is None else (1.0 - reputation_weight * (1.0 - rep))
         ranked.append(Ranked(
-            entry=entry,
-            name=c.name,
-            score=total * factor,          # reputation-adjusted final score
+            entry=o,
+            name=name,
+            score=total * factor,
             metric_contrib=contrib,
-            raw=c.raw,
+            raw=raw,
             base_score=total,
             reputation=rep,
         ))
-    # Deterministic tie-break: final score desc, then slug asc.
-    ranked.sort(key=lambda r: (-r.score, r.entry.aa_slug))
+    # Deterministic tie-break: final score desc, then seller_id asc.
+    ranked.sort(key=lambda r: (-r.score, r.entry.seller_id))
     return ranked

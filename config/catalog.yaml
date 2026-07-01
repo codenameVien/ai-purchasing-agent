@@ -1,52 +1,83 @@
-# Which benchmark models can the agent actually BUY via x402, and from whom.
-# Selection candidates = intersection(AA scores, this catalog).
-# aa_slug must match the slug in the live AA API response.
+# Offers the agent can buy. Each offer = a SELLER selling a MODEL at a price.
+# Multiple sellers may offer the SAME model (aa_slug) — open models are resold by
+# anyone, so selection compares SELLERS (price + reputation), not just models.
+# Candidates = offers whose aa_slug has a benchmark score.
+#
+# All LLM inference is x402-paid to OUR proxy (testnet); `backend` = who fulfills it.
+# `seller_id` is the reputation key (per-seller history).
 
-# All LLM inference is x402-paid to OUR proxy (testnet). `backend` = who fulfills it.
-# Reason: as of 2026 NO third-party sells pay-per-token LLM chat via x402 on testnet.
-# Heurist's x402 sells Mesh agent *tools* on Base MAINNET (real USDC), and its LLM
-# gateway is API-key only — so Heurist open models are just a proxy backend here.
-models:
-  # --- Open models: fulfilled via Heurist LLM gateway (API-key backend) ---
+offers:
+  # --- Llama 3.3: THREE competing sellers (same model, different price) ---
   - aa_slug: llama-3.3-70b
+    seller_id: alpha
     seller: proxy
     seller_url: http://localhost:8402/inference
     backend: heurist
-    model_id: meta-llama/llama-3.3-70b-instruct        # verified in Heurist supported-models
-    price_usdc_per_call: 0.002
+    model_id: meta-llama/llama-3.3-70b-instruct
+    price_usdc_per_call: 0.0020
 
-  - aa_slug: qwen-2.5-72b
+  - aa_slug: llama-3.3-70b
+    seller_id: beta                    # same Llama, cheaper seller
     seller: proxy
     seller_url: http://localhost:8402/inference
     backend: heurist
-    model_id: qwen/qwen-2.5-72b-instruct               # UNVERIFIED in Heurist catalog — check
-    price_usdc_per_call: 0.002
+    model_id: meta-llama/llama-3.3-70b-instruct
+    price_usdc_per_call: 0.0015
+
+  - aa_slug: llama-3.3-70b
+    seller_id: gamma                   # same Llama, cheapest seller
+    seller: proxy
+    seller_url: http://localhost:8402/inference
+    backend: heurist
+    model_id: meta-llama/llama-3.3-70b-instruct
+    price_usdc_per_call: 0.0012
+
+  # --- DeepSeek: two sellers ---
+  - aa_slug: deepseek-v3
+    seller_id: delta
+    seller: proxy
+    seller_url: http://localhost:8402/inference
+    backend: heurist
+    model_id: deepseek/deepseek-v3
+    price_usdc_per_call: 0.0030
 
   - aa_slug: deepseek-v3
+    seller_id: epsilon
     seller: proxy
     seller_url: http://localhost:8402/inference
     backend: heurist
-    model_id: deepseek/deepseek-v3                      # verified in Heurist supported-models
-    price_usdc_per_call: 0.003
+    model_id: deepseek/deepseek-v3
+    price_usdc_per_call: 0.0025
 
-  # --- Frontier models: proxy backend = real key (dev uses free/mock backend) ---
+  # --- Qwen: one seller ---
+  - aa_slug: qwen-2.5-72b
+    seller_id: zeta
+    seller: proxy
+    seller_url: http://localhost:8402/inference
+    backend: heurist
+    model_id: qwen/qwen-2.5-72b-instruct
+    price_usdc_per_call: 0.0020
+
+  # --- Frontier: single storefront each (closed model, one producer) ---
   - aa_slug: gpt-4o
+    seller_id: openai-store
     seller: proxy
     seller_url: http://localhost:8402/inference
     backend: openai
     model_id: gpt-4o
-    price_usdc_per_call: 0.02
+    price_usdc_per_call: 0.020
 
   - aa_slug: claude-opus-4-8
+    seller_id: anthropic-store
     seller: proxy
     seller_url: http://localhost:8402/inference
     backend: anthropic
-    model_id: claude-opus-4-8              # current Anthropic model id (Messages API)
+    model_id: claude-opus-4-8
     price_usdc_per_call: 0.025
 
 # Priority label -> weight vector over selection metrics.
 # Metrics: intelligence, coding, agentic (higher=better),
-#          cheap (lower price=better), fast (higher tps=better).
+#          cheap (lower OFFER price=better), fast (higher tps=better).
 priority_presets:
   intelligence: {intelligence: 1.0}
   coding:       {coding: 1.0}
