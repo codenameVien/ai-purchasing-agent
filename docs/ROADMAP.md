@@ -69,7 +69,7 @@
 
 ## H. reputation (감사/평판) 확장
 
-- [ ] **평판 → selector 반영 (루프 완성)**: 지금은 기록만. 평판 점수를 다음 선택 스코어링에 넣어 나쁜 셀러 도태. (핵심 미완성 고리)
+- [x] **평판 → selector 반영 (루프 완성)** ✅ 구현됨. `load_reputation()`이 원장 집계 → `select(reputation=..., reputation_weight=)`가 factor 적용해 나쁜 셀러 하락. 라이브 데모: 1회차 bad → 2회차 그 셀러 점수 하락. (default weight 0.5 = 수정자, 높이면 winner flip)
 - [ ] **온체인 giveFeedback 실구현**: `_give_feedback_real` 스텁 → web3 컨트랙트 호출. 셀러 ERC-721 Identity 등록(agentId), client-auth 서명(EIP-191/1271), Draft ABI 확인.
 - [ ] **입력원 = 사람 좋아요/싫어요**: 지금 judge(자동)가 먹임 → 사람 피드백 UI로 전환(G 전략). give_feedback 인터페이스는 재사용.
 

@@ -53,9 +53,11 @@ class ModelScore:
 class Ranked:
     entry: CatalogEntry
     name: str
-    score: float
+    score: float                          # final score (after reputation factor)
     metric_contrib: dict[str, float] = field(default_factory=dict)
     raw: dict[str, float] = field(default_factory=dict)
+    base_score: float = 0.0               # benchmark-only score, before reputation
+    reputation: float | None = None       # 0..1 mean past quality, None if no history
 
 
 def fetch_scores(use_live: bool = False, api_key: str | None = None,
@@ -133,9 +135,18 @@ def _normalize(values: dict[str, float], higher_is_better: bool) -> dict[str, fl
     return out
 
 
-def select(priorities, scores: list[ModelScore], catalog: Catalog) -> list[Ranked]:
-    """Rank buyable candidates (catalog ∩ scores) by weighted normalized score."""
+def select(priorities, scores: list[ModelScore], catalog: Catalog,
+           reputation: dict[str, dict] | None = None,
+           reputation_weight: float = 0.5) -> list[Ranked]:
+    """Rank buyable candidates (catalog ∩ scores) by weighted normalized score,
+    then apply a reputation factor so sellers with bad history sink.
+
+    reputation: {agent_id -> {"rep": 0..1, ...}} from reputation.load_reputation().
+    agent_id per candidate = f"{seller}:{model_id}". Unknown seller = no penalty.
+    factor = 1 - reputation_weight * (1 - rep); rep=1 -> unchanged, rep=0 -> *(1-weight).
+    """
     weights = weights_from_priorities(priorities, catalog)
+    reputation = reputation or {}
     buyable = catalog.buyable_slugs()
     candidates = [s for s in scores if s.slug in buyable]
     if not candidates:
@@ -160,13 +171,20 @@ def select(priorities, scores: list[ModelScore], catalog: Catalog) -> list[Ranke
                 continue  # model missing this metric -> contributes nothing
             contrib[metric] = weight * n
             total += contrib[metric]
+
+        entry = catalog.get(c.slug)
+        agent_id = f"{entry.seller}:{entry.model_id}"
+        rep = reputation.get(agent_id, {}).get("rep")          # None if no history
+        factor = 1.0 if rep is None else (1.0 - reputation_weight * (1.0 - rep))
         ranked.append(Ranked(
-            entry=catalog.get(c.slug),
+            entry=entry,
             name=c.name,
-            score=total,
+            score=total * factor,          # reputation-adjusted final score
             metric_contrib=contrib,
             raw=c.raw,
+            base_score=total,
+            reputation=rep,
         ))
-    # Deterministic tie-break: score desc, then slug asc.
+    # Deterministic tie-break: final score desc, then slug asc.
     ranked.sort(key=lambda r: (-r.score, r.entry.aa_slug))
     return ranked

@@ -5,8 +5,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+from agent.catalog import Catalog
 from agent.judge import judge
-from reputation.feedback import give_feedback
+from agent.selector import fetch_scores, select
+from reputation.feedback import give_feedback, load_reputation
 
 
 def test_judge_empty_is_bad():
@@ -39,6 +41,28 @@ def test_feedback_mock_writes_ledger(tmp_path):
     saved = json.loads((tmp_path / "ledger.json").read_text())
     assert len(saved) == 1 and saved[0]["agent_id"] == "proxy:gpt-4o"
     assert saved[0]["tag2"] == "bad"
+
+
+def test_reputation_downranks_bad_seller(tmp_path):
+    catalog = Catalog.load()
+    scores = fetch_scores(use_live=False)
+
+    # baseline: Claude wins on coding (best coding index)
+    base = select("coding", scores, catalog)
+    assert base[0].entry.aa_slug == "claude-opus-4-8"
+
+    # give Claude's seller repeated bad feedback
+    ledger = str(tmp_path / "ledger.json")
+    for _ in range(2):
+        give_feedback("proxy:claude-opus-4-8", 0.1, label="bad",
+                      reasons=["bad result"], mode="mock", ledger_path=ledger)
+    rep = load_reputation(ledger)
+
+    # default weight only modifies; a strong weight lets bad rep flip a leader
+    ranked = select("coding", scores, catalog, reputation=rep, reputation_weight=0.8)
+    claude = next(r for r in ranked if r.entry.aa_slug == "claude-opus-4-8")
+    assert claude.score < claude.base_score          # reputation factor applied
+    assert ranked[0].entry.aa_slug != "claude-opus-4-8"  # bad rep flipped the winner
 
 
 def test_feedback_appends(tmp_path):

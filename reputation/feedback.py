@@ -55,6 +55,25 @@ def _load_ledger(path: str) -> list[dict]:
     return []
 
 
+def load_reputation(ledger_path: str | None = None) -> dict[str, dict]:
+    """Aggregate the feedback ledger into per-seller reputation.
+
+    Returns {agent_id: {"rep": 0..1 mean quality, "count": n}}. Feeds selector so
+    sellers with bad history get down-ranked. Empty {} if no ledger yet.
+    """
+    path = ledger_path or _LEDGER_PATH
+    out: dict[str, dict] = {}
+    for rec in _load_ledger(path):
+        agent = rec.get("agent_id")
+        if not agent:
+            continue
+        q = rec["value"] / (10 ** rec.get("value_decimals", 0))   # decode 0..1 quality
+        acc = out.setdefault(agent, {"sum": 0.0, "count": 0})
+        acc["sum"] += q
+        acc["count"] += 1
+    return {a: {"rep": v["sum"] / v["count"], "count": v["count"]} for a, v in out.items()}
+
+
 def give_feedback(agent_id: str, score: float, *, label: str, reasons: list[str],
                   mode: str | None = None, network: str | None = None,
                   ledger_path: str | None = None) -> Feedback:

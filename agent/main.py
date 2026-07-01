@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from reputation.feedback import give_feedback
+from reputation.feedback import give_feedback, load_reputation
 
 from .catalog import Catalog
 from .judge import judge
@@ -21,10 +21,11 @@ from .selector import Ranked, fetch_scores, select
 
 
 def explain(ranked: list[Ranked]) -> str:
-    lines = [f"{'model':<22} {'seller':<8} {'score':>6}  contributions"]
+    lines = [f"{'model':<22} {'seller':<8} {'score':>6} {'rep':>5}  contributions"]
     for r in ranked:
         contrib = ", ".join(f"{k}={v:.2f}" for k, v in sorted(r.metric_contrib.items()))
-        lines.append(f"{r.name:<22} {r.entry.seller:<8} {r.score:>6.3f}  {contrib}")
+        rep = "-" if r.reputation is None else f"{r.reputation:.2f}"
+        lines.append(f"{r.name:<22} {r.entry.seller:<8} {r.score:>6.3f} {rep:>5}  {contrib}")
     return "\n".join(lines)
 
 
@@ -32,7 +33,8 @@ def run(prompt: str, priorities, use_live: bool = False,
         min_quality: float = 0.5, judge_mode: str = "heuristic") -> dict:
     catalog = Catalog.load()
     scores = fetch_scores(use_live=use_live)
-    ranked = select(priorities, scores, catalog)
+    reputation = load_reputation()                       # past feedback → down-rank bad sellers
+    ranked = select(priorities, scores, catalog, reputation=reputation)
     if not ranked:
         raise SystemExit("No buyable model matched the catalog ∩ benchmark scores.")
 
