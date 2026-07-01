@@ -94,8 +94,18 @@ def _real_pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard,
     target = url or entry.seller_url
     body = {"model": entry.model_id, "backend": entry.backend,
             "messages": [{"role": "user", "content": prompt}]}
+    # Preflight: read the 402 (no payment) to enforce the cap against the ACTUAL
+    # amount the seller asks for, before the paying session signs anything.
     amount = entry.price_usdc_per_call
-    guard.authorize(amount)                       # soft pre-cap vs expected catalog price
+    try:
+        pre = requests.post(target, json=body, timeout=timeout)
+        if pre.status_code == 402:
+            parsed = _required_usdc(_extract_requirements(pre), atomic=True)
+            if parsed is not None:
+                amount = parsed
+    except requests.RequestException:
+        pass                                       # fall back to catalog price
+    guard.authorize(amount)                        # actual required amount vs cap
     session = build_paying_session()
     r = session.post(target, json=body, timeout=timeout)
     r.raise_for_status()
@@ -103,6 +113,48 @@ def _real_pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard,
     # v2 settlement comes back in the PAYMENT-RESPONSE header (base64 JSON).
     tx = _decode_tx(r.headers.get("PAYMENT-RESPONSE", r.headers.get("X-PAYMENT-RESPONSE", "")))
     return {"result": r.json(), "receipt": PaymentReceipt(paid_usdc=amount, tx_hash=tx, mock=False)}
+
+
+def _extract_requirements(resp) -> dict | None:
+    """Get the x402 PaymentRequirements from a 402 response.
+
+    mock proxy puts them in the JSON body; the real x402 v2 middleware puts them
+    (base64 JSON) in the PAYMENT-REQUIRED header with an empty body.
+    """
+    try:
+        body = resp.json()
+        if isinstance(body, dict) and body.get("accepts"):
+            return body
+    except Exception:
+        pass
+    hdr = resp.headers.get("PAYMENT-REQUIRED") or resp.headers.get("payment-required")
+    if hdr:
+        try:
+            return json.loads(base64.b64decode(hdr))
+        except Exception:
+            return None
+    return None
+
+
+def _required_usdc(requirements: dict | None, atomic: bool, decimals: int = 6) -> float | None:
+    """Actual USDC the seller is asking for, from accepts[0].
+
+    real v2 uses atomic `amount` ("1000" = 0.001 at 6 decimals); our mock uses a
+    dollar string `maxAmountRequired` ("0.02"). Returns None if unparseable.
+    """
+    if not requirements:
+        return None
+    accepts = requirements.get("accepts") or []
+    if not accepts:
+        return None
+    a = accepts[0]
+    val = a.get("amount", a.get("maxAmountRequired"))
+    if val is None:
+        return None
+    try:
+        return int(val) / (10 ** decimals) if atomic else float(val)
+    except (ValueError, TypeError):
+        return None
 
 
 def _decode_tx(header_val: str) -> str:
@@ -135,9 +187,11 @@ def pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard, *,
         r.raise_for_status()
         return {"result": r.json(), "receipt": None}
 
-    requirements = r.json()
-    amount = entry.price_usdc_per_call
-    guard.authorize(amount)                       # refuse before paying if over cap
+    requirements = _extract_requirements(r) or {}
+    amount = _required_usdc(requirements, atomic=False)     # ACTUAL 402 amount, not catalog estimate
+    if amount is None:
+        amount = entry.price_usdc_per_call                 # fallback if unparseable
+    guard.authorize(amount)                                # refuse before paying if over cap
     header = _build_payment_header(requirements, amount, mode)
 
     r = post(target, json=body, headers={"X-PAYMENT": header}, timeout=timeout)
