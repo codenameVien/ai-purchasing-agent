@@ -29,8 +29,8 @@ def test_priority_changes_winner():
     coding_winner = select("coding", scores, catalog)[0]
     # Cheapest model (llama, $0.6) must win on 'cheap'.
     assert cheap_winner.entry.aa_slug == "llama-3.3-70b"
-    # Best coding index (claude 3.7, 52) must win on 'coding'.
-    assert coding_winner.entry.aa_slug == "claude-3-7-sonnet"
+    # Best coding index (Opus 4.8, 60) must win on 'coding'.
+    assert coding_winner.entry.aa_slug == "claude-opus-4-8"
     assert cheap_winner.entry.aa_slug != coding_winner.entry.aa_slug
 
 

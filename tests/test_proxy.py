@@ -4,6 +4,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+os.environ["PROXY_BACKEND"] = "mock"  # force mock backend regardless of catalog
+
 from fastapi.testclient import TestClient
 
 from agent.catalog import Catalog
@@ -34,7 +36,7 @@ def test_e2e_mock_payment():
 
 
 def test_guard_blocks_overspend():
-    entry = Catalog.load().get("claude-3-7-sonnet")  # 0.025 USDC/call
+    entry = Catalog.load().get("claude-opus-4-8")  # 0.025 USDC/call
     guard = SpendGuard(per_call=0.01, per_session=1.0)  # cap below price
     try:
         pay_and_call(entry, "ping", guard, mode="mock", url="/inference", post=client.post)

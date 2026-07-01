@@ -28,7 +28,9 @@ def _last_user(body: dict) -> str:
 
 
 def call_backend(body: dict) -> str:
-    backend = os.environ.get("PROXY_BACKEND", "mock")
+    # Precedence: PROXY_BACKEND env forces one backend for all models (dev/mock);
+    # else the per-request/catalog `backend`; else mock.
+    backend = os.environ.get("PROXY_BACKEND") or body.get("backend") or "mock"
     if backend == "mock":
         return f"[mock-backend echo for {body.get('model','?')}] {_last_user(body)[:300]}"
     if backend == "mock_bad":

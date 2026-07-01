@@ -92,7 +92,8 @@ def build_paying_session(network: str | None = None):
 def _real_pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard,
                        url: str | None, timeout: float) -> dict:
     target = url or entry.seller_url
-    body = {"model": entry.model_id, "messages": [{"role": "user", "content": prompt}]}
+    body = {"model": entry.model_id, "backend": entry.backend,
+            "messages": [{"role": "user", "content": prompt}]}
     amount = entry.price_usdc_per_call
     guard.authorize(amount)                       # soft pre-cap vs expected catalog price
     session = build_paying_session()
@@ -126,7 +127,8 @@ def pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard, *,
         return _real_pay_and_call(entry, prompt, guard, url, timeout)
 
     target = url or entry.seller_url
-    body = {"model": entry.model_id, "messages": [{"role": "user", "content": prompt}]}
+    body = {"model": entry.model_id, "backend": entry.backend,
+            "messages": [{"role": "user", "content": prompt}]}
 
     r = post(target, json=body, timeout=timeout)
     if r.status_code != 402:

@@ -20,6 +20,7 @@ class CatalogEntry:
     seller_url: str
     model_id: str          # provider-side model id to send in the request
     price_usdc_per_call: float
+    backend: str = "mock"  # who fulfills inference: mock | heurist | openrouter_free | anthropic | openai
 
 
 class Catalog:
@@ -38,6 +39,7 @@ class Catalog:
                 seller_url=m["seller_url"],
                 model_id=m["model_id"],
                 price_usdc_per_call=float(m["price_usdc_per_call"]),
+                backend=m.get("backend", "mock"),
             )
             for m in raw.get("models", [])
         }

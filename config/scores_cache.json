@@ -39,12 +39,12 @@
       "median_output_tokens_per_second": 80
     },
     {
-      "slug": "claude-3-7-sonnet",
-      "name": "Claude 3.7 Sonnet",
-      "artificial_analysis_intelligence_index": 53,
-      "artificial_analysis_coding_index": 52,
-      "artificial_analysis_agentic_index": 35,
-      "price_1m_blended_3_to_1": 9.0,
+      "slug": "claude-opus-4-8",
+      "name": "Claude Opus 4.8",
+      "artificial_analysis_intelligence_index": 64,
+      "artificial_analysis_coding_index": 60,
+      "artificial_analysis_agentic_index": 45,
+      "price_1m_blended_3_to_1": 10.0,
       "median_output_tokens_per_second": 70
     }
   ]

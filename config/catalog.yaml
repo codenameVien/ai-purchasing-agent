@@ -37,11 +37,11 @@ models:
     model_id: gpt-4o
     price_usdc_per_call: 0.02
 
-  - aa_slug: claude-3-7-sonnet
+  - aa_slug: claude-opus-4-8
     seller: proxy
     seller_url: http://localhost:8402/inference
     backend: anthropic
-    model_id: claude-3-7-sonnet
+    model_id: claude-opus-4-8              # current Anthropic model id (Messages API)
     price_usdc_per_call: 0.025
 
 # Priority label -> weight vector over selection metrics.

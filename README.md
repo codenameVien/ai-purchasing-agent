@@ -78,6 +78,14 @@ python -m agent.main --prompt "Write binary search in Rust" --priority coding  #
 ```
 The printed tx hash settles on [sepolia.basescan.org](https://sepolia.basescan.org). Public facilitator (default) needs **no CDP key** — a funded wallet is enough; gas is sponsored.
 
+### Real model answers (Phase 5)
+By default the proxy runs `PROXY_BACKEND=mock` (echoes the prompt). To get a real answer from the *selected* model, leave `PROXY_BACKEND` unset so each model routes to its catalog `backend`, and set that backend's key. Cheapest path — a **free OpenRouter key ($0)** covers the open models:
+```bash
+# in .env: OPENROUTER_API_KEY=...   (and unset PROXY_BACKEND, or set it to openrouter_free)
+# then the winning open model returns a real answer; frontier models need ANTHROPIC_API_KEY / OPENAI_API_KEY
+```
+`backend` per model: open models → `heurist`/`openrouter_free`, `claude-opus-4-8` → `anthropic`, `gpt-4o` → `openai`. Pick a priority that selects a model whose key you have (e.g. `--priority cheap` → an open model).
+
 > ⚠️ In `.env`, set `PROXY_PRICE` as a **bare number** (`0.001`). A leading `$` (`$0.001`) gets shell-expanded by `set -a; . ./.env` (`$0` = script name) and corrupts the value.
 
 ## Project structure
@@ -102,7 +110,7 @@ The printed tx hash settles on [sepolia.basescan.org](https://sepolia.basescan.o
 - ✅ **A** Real on-chain x402 payment — **live-verified on Base Sepolia**
 - ✅ **3** Heurist reality-checked (mainnet tool seller, not testnet LLM x402) + real-402 probe
 - ✅ **4** ERC-8004 reputation loop (mock ledger; on-chain stub)
-- ⬜ **5** Swap proxy backend to a real Claude/OpenAI key for the final answer
+- ✅ **5 (code)** Per-model backend routing (catalog `backend`) + current model ids. Real answers need one API key — see below.
 
 ## Security
 
@@ -182,7 +190,7 @@ python -m agent.main --prompt "..." --priority coding  # 터미널2
 - ✅ **A** 실 온체인 x402 결제 — **Base Sepolia 라이브 검증**
 - ✅ **3** Heurist 현실 검증(메인넷 툴 셀러, 테스트넷 LLM x402 아님) + real-402 프로브
 - ✅ **4** ERC-8004 평판 루프 (mock 원장; 온체인 스텁)
-- ⬜ **5** 프록시 백엔드를 실제 Claude/OpenAI 키로 교체(최종 답변)
+- ✅ **5 (코드)** 모델별 백엔드 라우팅(catalog `backend`) + 현재 모델 id. 진짜 답변은 키 1개 필요(무료 OpenRouter 키면 $0). `PROXY_BACKEND` 안 정하면 모델마다 자기 backend로 라우팅.
 
 ## 보안
 
