@@ -67,6 +67,12 @@
 - [ ] **사람 = 감독층**(전수 아님): 샘플링·분쟁해결·자동필터 보정. per-call 검수공 아님.
 - 참고: 검수(judge, 이번 결과) ≠ 감사(reputation, 셀러 이력). 검수는 감사에 넣을 신호 생성기.
 
+## H. reputation (감사/평판) 확장
+
+- [ ] **평판 → selector 반영 (루프 완성)**: 지금은 기록만. 평판 점수를 다음 선택 스코어링에 넣어 나쁜 셀러 도태. (핵심 미완성 고리)
+- [ ] **온체인 giveFeedback 실구현**: `_give_feedback_real` 스텁 → web3 컨트랙트 호출. 셀러 ERC-721 Identity 등록(agentId), client-auth 서명(EIP-191/1271), Draft ABI 확인.
+- [ ] **입력원 = 사람 좋아요/싫어요**: 지금 judge(자동)가 먹임 → 사람 피드백 UI로 전환(G 전략). give_feedback 인터페이스는 재사용.
+
 ## E. 기타 (teardown 진행하며 추가 예정)
 
-- (Part 7~ 진행하며 발견 항목 여기 누적)
+- (Part 8~ 진행하며 발견 항목 여기 누적)
