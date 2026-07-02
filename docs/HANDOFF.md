@@ -22,10 +22,13 @@ python scripts/setup_keys.py
 - 넣기: `setup_keys.py`에서 `OPENROUTER_API_KEY` 입력.
 - 실행:
   ```bash
+  # 두 터미널 모두 먼저: cd ~/ai-purchasing-agent && set -a; . ./.env; set +a
   # 프록시: PROXY_BACKEND 비우면 모델별 backend로 라우팅
-  set -a; . ./.env; set +a
+  cd ~/ai-purchasing-agent && set -a; . ./.env; set +a
   uvicorn seller_proxy.main:app --port 8402          # 터미널1
-  python -m agent.main --prompt "explain TLS" --priority cheap   # 터미널2 → 오픈모델 진짜 답변
+  # 터미널2 (새 창):
+  cd ~/ai-purchasing-agent && set -a; . ./.env; set +a
+  python -m agent.main --prompt "explain TLS" --priority cheap   # 오픈모델 진짜 답변
   ```
 - 프론티어(Claude/GPT) 진짜 답변은 `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` (유료).
 
@@ -33,12 +36,17 @@ python scripts/setup_keys.py
 
 **필요**: 펀딩된 **테스트넷 지갑**.
 ```bash
+cd ~/ai-purchasing-agent
 pip install "x402[evm]"
 python scripts/gen_wallet.py       # 일회용 지갑 2개 생성 → .env
 #  → 출력된 BUYER 주소를 https://faucet.circle.com (Base Sepolia)에서 USDC 충전
-set -a; . ./.env; set +a
-uvicorn seller_proxy.real:app --port 8402                          # 터미널1 (X402_MODE=real)
-python -m agent.main --prompt "Write binary search in Rust" --priority coding   # 터미널2
+
+# 터미널1:
+cd ~/ai-purchasing-agent && set -a; . ./.env; set +a
+uvicorn seller_proxy.real:app --port 8402
+# 터미널2 (새 창):
+cd ~/ai-purchasing-agent && set -a; . ./.env; set +a
+python -m agent.main --prompt "Write binary search in Rust" --priority coding
 ```
 - tx hash를 https://sepolia.basescan.org 에서 확인. 공개 facilitator라 CDP 키 불필요.
 - ⚠️ 메타마스크/실자금 키 절대 금지. 일회용 테스트넷만.
@@ -57,13 +65,19 @@ python -m agent.main --prompt "Write binary search in Rust" --priority coding   
 ## 지금 상태 (키 없이 이미 되는 것)
 
 ```bash
+# 모든 명령은 먼저: cd ~/ai-purchasing-agent
+cd ~/ai-purchasing-agent
 pytest -q                                   # 33 tests
-# mock 전체 흐름 (지갑·키 0):
+
+# mock 전체 흐름 (지갑·키 0) — 터미널1:
+cd ~/ai-purchasing-agent
 X402_MODE=mock PROXY_BACKEND=mock uvicorn seller_proxy.main:app --port 8402
-python -m agent.main --prompt "빠르고 저렴하게 요약"      # 자연어→우선순위→다중셀러 선택→결제→검수
-curl -s localhost:8402/marketplace | python3 -m json.tool  # 시장 오퍼 조회
-python scripts/rate.py gamma down                         # 사람 👎 → 다음 선택서 회피
-python scripts/spend.py                                   # 지출 요약
+# 터미널2 (새 창):
+cd ~/ai-purchasing-agent
+X402_MODE=mock python -m agent.main --prompt "빠르고 저렴하게 요약"   # 자연어→선택→결제→검수
+curl -s localhost:8402/marketplace | python3 -m json.tool            # 시장 오퍼 조회
+python scripts/rate.py gamma down                                    # 사람 👎 → 다음 선택서 회피
+python scripts/spend.py                                              # 지출 요약
 ```
 
 구현·검증된 것: 자연어 선택 · 다중셀러(가격·속도 경쟁) · x402 결제(mock+real 구조, 라이브 1회 성공) · 실제금액 상한 · 검수(배달체크) · 사람 평판(human 가중) · 마켓 discovery · 지출회계 · 에러처리. 전체 로드맵은 `docs/ROADMAP.md`.
