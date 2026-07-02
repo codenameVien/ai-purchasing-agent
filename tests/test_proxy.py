@@ -15,6 +15,24 @@ from seller_proxy.main import app
 client = TestClient(app)
 
 
+def test_marketplace_discovery_endpoint():
+    r = client.get("/marketplace")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["count"] >= 1
+    o = data["offers"][0]
+    for k in ("aa_slug", "seller_id", "price_usdc_per_call", "reputation"):
+        assert k in o
+
+
+def test_discover_catalog_matches_local():
+    from agent.catalog import Catalog
+    from agent.discovery import discover_catalog
+    discovered = discover_catalog("/marketplace", get=client.get)
+    assert discovered.aa_slugs() == Catalog.load().aa_slugs()   # same models, fetched live
+    assert len(discovered.offers) == len(Catalog.load().offers)
+
+
 def test_402_without_payment():
     r = client.post("/inference", json={"model": "x", "messages": [{"role": "user", "content": "hi"}]})
     assert r.status_code == 402

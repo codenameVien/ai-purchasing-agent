@@ -15,6 +15,7 @@ import os
 from reputation.feedback import give_feedback, load_reputation
 
 from .catalog import Catalog
+from .discovery import discover_catalog
 from .judge import judge
 from .nl_priority import infer_priorities
 from .payer import SpendGuard, SpendingError, pay_and_call
@@ -32,11 +33,16 @@ def explain(ranked: list[Ranked]) -> str:
 
 
 def run(prompt: str, priorities=None, use_live: bool = False,
-        min_quality: float = 0.5, judge_mode: str = "heuristic") -> dict:
+        min_quality: float = 0.5, judge_mode: str = "heuristic",
+        marketplace_url: str | None = None) -> dict:
     if not priorities:                                   # no explicit --priority -> infer from prompt
         priorities = infer_priorities(prompt)
         print(f"[inferred priorities from prompt: {priorities}]")
-    catalog = Catalog.load()
+    if marketplace_url:                                  # discover offers live vs local catalog
+        catalog = discover_catalog(marketplace_url)
+        print(f"[discovered {len(catalog.offers)} offers from {marketplace_url}]")
+    else:
+        catalog = Catalog.load()
     scores = fetch_scores(use_live=use_live)
     reputation = load_reputation()                       # past feedback → down-rank bad sellers
     ranked = select(priorities, scores, catalog, reputation=reputation)
@@ -97,9 +103,11 @@ def main():
     ap.add_argument("--min-quality", type=float, default=0.5,
                     help="below this score the result is judged bad -> reputation feedback")
     ap.add_argument("--judge", default="heuristic", choices=["heuristic", "llm"])
+    ap.add_argument("--marketplace", default=None,
+                    help="discover offers from a /marketplace URL instead of local catalog")
     args = ap.parse_args()
     run(args.prompt, args.priority, use_live=args.live,
-        min_quality=args.min_quality, judge_mode=args.judge)
+        min_quality=args.min_quality, judge_mode=args.judge, marketplace_url=args.marketplace)
 
 
 if __name__ == "__main__":

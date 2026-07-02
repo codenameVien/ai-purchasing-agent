@@ -83,3 +83,32 @@ async def inference(request: Request):
 @app.get("/health")
 async def health():
     return {"status": "ok", "mode": MODE, "backend": os.environ.get("PROXY_BACKEND", "mock")}
+
+
+@app.get("/marketplace")
+async def marketplace():
+    """Discovery: what's for sale right now — offers (seller × model) + reputation.
+
+    Buyers query this instead of reading a hardcoded catalog, so the candidate set
+    is built live. Reputation is attached so the market's trust is visible.
+    """
+    from agent.catalog import Catalog
+    from reputation.feedback import load_reputation
+
+    rep = load_reputation()
+    offers = []
+    for o in Catalog.load().offers:
+        r = rep.get(o.seller_id)
+        offers.append({
+            "aa_slug": o.aa_slug,
+            "seller_id": o.seller_id,
+            "seller": o.seller,
+            "seller_url": o.seller_url,
+            "model_id": o.model_id,
+            "backend": o.backend,
+            "price_usdc_per_call": o.price_usdc_per_call,
+            "speed_tps": o.speed_tps,
+            "reputation": (r["rep"] if r else None),
+            "reputation_count": (r["count"] if r else 0),
+        })
+    return {"offers": offers, "count": len(offers)}
