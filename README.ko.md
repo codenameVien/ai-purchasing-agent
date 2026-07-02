@@ -92,7 +92,9 @@ tx는 [sepolia.basescan.org](https://sepolia.basescan.org)에서 정산 확인. 
 | `agent/catalog.py` | 오퍼(셀러×모델); yaml 또는 `/marketplace`에서 로드 |
 | `agent/discovery.py` | 마켓 엔드포인트서 오퍼 실시간 조회 |
 | `agent/payer.py` | x402 클라이언트(mock + real `x402[evm]`) + 지출 가드레일 + 에러 |
-| `agent/judge.py` | 기계 배달체크 (품질 심판 아님) |
+| `agent/judge.py` | 기계 배달체크 (heuristic / objective / llm 모드) |
+| `agent/verify.py` | 객관 검증(코드 컴파일/실행·수학 검산) |
+| `agent/llm.py` | buyer-side LLM(우선순위 추론/검수; x402 결제 아님) |
 | `agent/accounting.py` | 지출 원장 + 요약 |
 | `agent/main.py` | 오케스트레이터 (요청→추론→선택→결제→답변→검수→피드백) |
 | `seller_proxy/main.py` | mock x402 셀러 + `GET /marketplace` |
@@ -106,7 +108,9 @@ tx는 [sepolia.basescan.org](https://sepolia.basescan.org)에서 정산 확인. 
 - ✅ 벤치마크 선택 · 자연어 우선순위 · 다중셀러 마켓(가격/속도/평판) · discovery 엔드포인트
 - ✅ x402 결제(mock + **real, Base Sepolia 라이브 검증**) · 실제 금액 가드레일
 - ✅ 진짜 답변(OpenRouter + Gemini, 라이브) · 배달체크 · 사람 👍/👎 → 평판 루프 · 지출 회계
-- ⬜ 온체인 giveFeedback · LLM 우선순위 추론 · 객관 검증(코드=테스트) — `docs/ROADMAP.md`
+- ✅ LLM 우선순위 추론(`--infer llm`) · 객관 검증(`--judge objective`: 코드 컴파일/실행·수학 검산)
+- ✅ 온체인 giveFeedback을 **검증된 ERC-8004 ABI**로 배선(코드+테스트; 실 broadcast는 셀러 Identity 등록 + 지갑 충전 필요)
+- ⬜ tx 확정 대기 · 결제 전 잔액 확인 · 셀러 Identity 등록 — `docs/ROADMAP.md`
 
 ## 보안
 

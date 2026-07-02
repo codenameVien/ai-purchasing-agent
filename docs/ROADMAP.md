@@ -26,7 +26,7 @@
 ## B. selector (선택) — 자연어 우선순위
 
 - [x] **NL 프롬프트 → 우선순위 자동 추론 (룰 기반)** ✅ `agent/nl_priority.py`. 키워드 매칭(KR+EN)으로 자연어→우선순위. `--priority` 생략 시 prompt에서 추론. 데모: "Rust 코드"→coding, "빠르고 저렴"→cheap+fast.
-- [ ] **LLM 기반 추론으로 업그레이드**: 룰(키워드)은 한계 → 진짜 이해는 LLM 분류. `infer_priorities(mode="llm")` 스텁 있음. 키 붙이면 교체.
+- [x] **LLM 기반 추론으로 업그레이드** ✅ `infer_priorities(mode="llm")` 구현. `agent/llm.py`(buyer-side LLM, Gemini/OpenRouter/OpenAI, x402 아님)로 의도 분류. `--infer llm`. 키 없거나 실패 시 룰로 fallback(오프라인 동작 유지). 유효 라벨만·순서 보존·dedup.
 
 ---
 
@@ -63,14 +63,14 @@
 
 - [x] **judge 축소** ✅ 배달 체크(기계 필터)로 역할 재정의(docstring). 품질심판 아님 명시. LLM 모드는 의도적 스텁.
 - [x] **품질 평가 = 사람 피드백(좋아요/싫어요)** ✅ `scripts/rate.py <seller> up|down` → reputation(source="human"). 사후 비동기(우버 별점). 데모: 사람 👎 gamma → 다음 선택서 gamma 회피. 피드백에 source(auto/human) 구분.
-- [ ] **객관 검증 우선**: 검증 가능한 태스크(코드=테스트 통과, 수학=검산)는 사람·AI 없이 기계적 참/거짓. 가능하면 이걸 최우선.
+- [x] **객관 검증 우선** ✅ `agent/verify.py` + `judge(mode="objective")`. 검증 가능 태스크는 기계적 참/거짓: 코드=`compile()` 문법검증(안전, 무실행) + `VERIFY_EXECUTE=1` opt-in 실행(subprocess+timeout, 위험 명시), 수학=검산. 검증 불가면 배달 heuristic으로 fallback. 데모: 안 컴파일되는 긴 코드 답변 → 길이 heuristic은 통과해도 objective는 bad.
 - [ ] **사람 = 감독층**(전수 아님): 샘플링·분쟁해결·자동필터 보정. per-call 검수공 아님.
 - 참고: 검수(judge, 이번 결과) ≠ 감사(reputation, 셀러 이력). 검수는 감사에 넣을 신호 생성기.
 
 ## H. reputation (감사/평판) 확장
 
 - [x] **평판 → selector 반영 (루프 완성)** ✅ 구현됨. `load_reputation()`이 원장 집계 → `select(reputation=..., reputation_weight=)`가 factor 적용해 나쁜 셀러 하락. 라이브 데모: 1회차 bad → 2회차 그 셀러 점수 하락. (default weight 0.5 = 수정자, 높이면 winner flip)
-- [ ] **온체인 giveFeedback 실구현**: `_give_feedback_real` 스텁 → web3 컨트랙트 호출. 셀러 ERC-721 Identity 등록(agentId), client-auth 서명(EIP-191/1271), Draft ABI 확인.
+- [~] **온체인 giveFeedback 실구현** ✅ 코드+테스트 완성 `_give_feedback_real`: web3로 `giveFeedback(uint256 agentId,int128 value,uint8 valueDecimals,string tag1,string tag2,string endpoint,string feedbackURI,bytes32 feedbackHash)` build→sign→send. **ABI 실검증**(erc-8004/erc-8004-contracts `abis/ReputationRegistry.json`, 레포에 저장). msg.sender=buyer=client, 컨트랙트가 self-feedback 차단 → 결제자가 피드백 = 정확. 테스트는 web3 mock(실 broadcast 없음). `REPUTATION_MODE=real`에서만 발동(기본 mock). ⬜ 남음(실 broadcast 전제): 셀러 ERC-721 Identity Registry 등록 후 `SELLER_AGENT_IDS='{"gamma":<tokenId>}'` 매핑 + 지갑 충전. 미등록 셀러는 명확히 차단(tokenId 위조 불가).
 - [x] **입력원 = 사람 좋아요/싫어요** ✅ `scripts/rate.py`로 사람 👍/👎(source="human"). judge(auto)는 배달실패만. 둘 다 같은 reputation으로. (UI화·human 가중은 남음)
 
 ## E. 기타 (teardown 진행하며 추가 예정)

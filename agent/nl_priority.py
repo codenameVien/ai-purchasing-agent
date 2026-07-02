@@ -8,6 +8,11 @@ Multiple matches are returned (the selector sums their weights); no match -> bal
 """
 from __future__ import annotations
 
+from .llm import LLMError, chat
+
+# the closed set of priority labels the selector understands
+_LABELS = ("coding", "cheap", "fast", "intelligence", "agentic", "balanced")
+
 # priority label -> trigger keywords (substring match, KR + EN, lowercased for EN)
 _RULES: list[tuple[str, tuple[str, ...]]] = [
     ("coding", ("code", "coding", "program", "function", "bug", "debug", "refactor",
@@ -25,10 +30,38 @@ _RULES: list[tuple[str, tuple[str, ...]]] = [
 ]
 
 
+_LLM_SYSTEM = (
+    "You classify a user's request into buying priorities for choosing an AI model. "
+    "Allowed labels: coding, cheap, fast, intelligence, agentic. "
+    "Return ONLY the applicable labels as a comma-separated list, most important first. "
+    "Return 'balanced' if none clearly apply. No prose, no explanation."
+)
+
+
+def _infer_llm(prompt: str) -> list[str]:
+    """Classify via an LLM (understands intent, not just keywords). Raises LLMError."""
+    raw = chat(prompt or "", system=_LLM_SYSTEM)
+    picked = [tok.strip().lower() for tok in raw.replace("\n", ",").split(",")]
+    matched = [p for p in picked if p in _LABELS and p != "balanced"]
+    # de-dup, preserve LLM's priority order
+    seen: set[str] = set()
+    ordered = [m for m in matched if not (m in seen or seen.add(m))]
+    return ordered or ["balanced"]
+
+
 def infer_priorities(prompt: str, mode: str = "rules") -> list[str]:
-    """Return priority labels inferred from the prompt. Falls back to ['balanced']."""
+    """Return priority labels inferred from the prompt. Falls back to ['balanced'].
+
+    mode="rules" (default): offline keyword match. mode="llm": ask a model to
+    classify intent; on any LLM failure (no key/network) it falls back to rules so
+    the agent still runs offline.
+    """
     if mode == "llm":
-        raise NotImplementedError("LLM priority inference not wired yet (rules mode works)")
+        try:
+            return _infer_llm(prompt)
+        except LLMError as e:
+            print(f"[nl_priority: LLM unavailable ({e}); falling back to rules]")
+            mode = "rules"
     if mode != "rules":
         raise ValueError(f"unknown mode: {mode!r}")
 

@@ -35,10 +35,10 @@ def explain(ranked: list[Ranked]) -> str:
 
 def run(prompt: str, priorities=None, use_live: bool = False,
         min_quality: float = 0.5, judge_mode: str = "heuristic",
-        marketplace_url: str | None = None) -> dict:
+        marketplace_url: str | None = None, infer_mode: str = "rules") -> dict:
     if not priorities:                                   # no explicit --priority -> infer from prompt
-        priorities = infer_priorities(prompt)
-        print(f"[inferred priorities from prompt: {priorities}]")
+        priorities = infer_priorities(prompt, mode=infer_mode)
+        print(f"[inferred priorities from prompt ({infer_mode}): {priorities}]")
     if marketplace_url:                                  # discover offers live vs local catalog
         catalog = discover_catalog(marketplace_url)
         print(f"[discovered {len(catalog.offers)} offers from {marketplace_url}]")
@@ -107,12 +107,17 @@ def main():
     ap.add_argument("--live", action="store_true", help="fetch live AA scores (needs AA_API_KEY)")
     ap.add_argument("--min-quality", type=float, default=0.5,
                     help="below this score the result is judged bad -> reputation feedback")
-    ap.add_argument("--judge", default="heuristic", choices=["heuristic", "llm"])
+    ap.add_argument("--judge", default="heuristic", choices=["heuristic", "objective", "llm"],
+                    help="objective = check code compiles/runs, arithmetic (ground truth) "
+                         "then fall back to delivery heuristic")
+    ap.add_argument("--infer", default="rules", choices=["rules", "llm"],
+                    help="how to infer priorities from the prompt when --priority is omitted")
     ap.add_argument("--marketplace", default=None,
                     help="discover offers from a /marketplace URL instead of local catalog")
     args = ap.parse_args()
     run(args.prompt, args.priority, use_live=args.live,
-        min_quality=args.min_quality, judge_mode=args.judge, marketplace_url=args.marketplace)
+        min_quality=args.min_quality, judge_mode=args.judge, marketplace_url=args.marketplace,
+        infer_mode=args.infer)
 
 
 if __name__ == "__main__":

@@ -94,7 +94,9 @@ tx settles on [sepolia.basescan.org](https://sepolia.basescan.org). Public facil
 | `agent/catalog.py` | offers (seller × model); loaded from yaml or `/marketplace` |
 | `agent/discovery.py` | fetch offers live from a marketplace endpoint |
 | `agent/payer.py` | x402 client (mock + real `x402[evm]`) + spend guardrails + errors |
-| `agent/judge.py` | machine delivery-check (not a quality judge) |
+| `agent/judge.py` | machine delivery-check (heuristic / objective / llm modes) |
+| `agent/verify.py` | objective ground-truth checks (code compiles/runs, arithmetic) |
+| `agent/llm.py` | buyer-side LLM (priority inference / judging; NOT paid via x402) |
 | `agent/accounting.py` | spend ledger + summary |
 | `agent/main.py` | orchestrator (request→infer→select→pay→answer→judge→feedback) |
 | `seller_proxy/main.py` | mock x402 seller + `GET /marketplace` discovery |
@@ -108,7 +110,9 @@ tx settles on [sepolia.basescan.org](https://sepolia.basescan.org). Public facil
 - ✅ Benchmark selection · NL priority · multi-seller marketplace (price/speed/reputation) · discovery endpoint
 - ✅ x402 payment (mock + **real, live-verified on Base Sepolia**) · actual-amount guardrails
 - ✅ Real answers (OpenRouter + Gemini, live) · delivery-check · human 👍/👎 → reputation loop · spend accounting
-- ⬜ On-chain giveFeedback · LLM priority inference · objective verification (code=tests) — see `docs/ROADMAP.md`
+- ✅ LLM priority inference (`--infer llm`) · objective verification (`--judge objective`: code compiles/runs, arithmetic)
+- ✅ On-chain giveFeedback wired against the **verified ERC-8004 ABI** (code + tests; live broadcast needs seller Identity-Registry registration + funded wallet)
+- ⬜ tx-confirmation wait · pre-pay balance check · seller Identity registration — see `docs/ROADMAP.md`
 
 ## Security
 

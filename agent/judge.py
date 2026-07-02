@@ -7,12 +7,17 @@ empty output, refusal, error markers, near-empty length. A bad verdict records a
 `source="auto"` reputation signal; humans add the `source="human"` quality signal.
 
 mode="heuristic" (default): the cheap mechanical checks below.
+mode="objective": for verifiable tasks (code compiles/runs, arithmetic) use ground
+truth via agent.verify; fall back to the delivery heuristic when a task is not
+objectively checkable. This is the PREFERRED signal when it applies (ROADMAP G).
 mode="llm": reserved — an LLM delivery/quality check, wire later (kept a stub on
 purpose; see docs/ROADMAP.md G for why AI quality-judging is deferred).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+
+from .verify import verify as verify_objective
 
 _ERROR_MARKERS = ("error", "exception", "traceback", "null", "undefined")
 _REFUSAL_MARKERS = ("i cannot", "i can't", "i'm unable", "cannot help", "as an ai")
@@ -58,6 +63,13 @@ def judge(prompt: str, result_text: str, *, mode: str = "heuristic",
           min_acceptable: float = 0.5) -> Verdict:
     if mode == "heuristic":
         v = _heuristic(prompt, result_text)
+    elif mode == "objective":
+        obj = verify_objective(prompt, result_text)
+        if obj is not None:                       # task was objectively checkable
+            score, label, reasons = obj
+            v = Verdict(score, label, list(reasons))
+        else:                                     # not verifiable -> delivery check
+            v = _heuristic(prompt, result_text)
     elif mode == "llm":
         # Wire an LLM-judge call here (score the answer against the prompt).
         raise NotImplementedError("LLM-judge mode not wired yet")

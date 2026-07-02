@@ -102,3 +102,106 @@ def test_feedback_appends(tmp_path):
     give_feedback("a:2", 0.3, label="bad", reasons=["y"], mode="mock", ledger_path=ledger)
     saved = json.loads((tmp_path / "ledger.json").read_text())
     assert len(saved) == 2
+
+
+# --- on-chain giveFeedback (ERC-8004 real path) — web3 mocked, NO real broadcast ---
+
+def test_resolve_agent_id_numeric_and_mapping(monkeypatch):
+    from reputation.feedback import _resolve_agent_id
+    assert _resolve_agent_id("7") == 7                       # numeric tokenId direct
+    monkeypatch.setenv("SELLER_AGENT_IDS", '{"gamma": 42}')
+    assert _resolve_agent_id("gamma") == 42                  # seller_id -> tokenId map
+
+
+def test_resolve_agent_id_unregistered_fails(monkeypatch):
+    from reputation.feedback import _resolve_agent_id
+    monkeypatch.setenv("SELLER_AGENT_IDS", "{}")
+    try:
+        _resolve_agent_id("unknown-seller")
+    except RuntimeError as e:
+        assert "Identity Registry" in str(e)
+        return
+    raise AssertionError("expected RuntimeError for unregistered seller")
+
+
+def _install_fake_chain(monkeypatch, captured):
+    """Patch web3.Web3 + eth_account.Account so the real path builds/signs/sends a tx
+    against fakes instead of a live RPC. Records the giveFeedback args in `captured`."""
+    import eth_account
+    import web3
+
+    class _Fn:
+        def build_transaction(self, tx):
+            captured["tx"] = tx
+            return {**tx, "data": "0xdeadbeef", "gas": 100000}
+
+    class _Funcs:
+        def giveFeedback(self, *args):
+            captured["args"] = args
+            return _Fn()
+
+    class _Eth:
+        def contract(self, address, abi):
+            captured["address"] = address
+            captured["abi_len"] = len(abi)
+            return type("C", (), {"functions": _Funcs()})()
+
+        def get_transaction_count(self, addr, block=None):
+            return 3
+
+        def send_raw_transaction(self, raw):
+            captured["sent"] = raw
+            return bytes.fromhex("ab" * 32)
+
+    class _Web3:
+        def __init__(self, provider):
+            self.eth = _Eth()
+
+        @staticmethod
+        def HTTPProvider(url):
+            captured["rpc"] = url
+            return object()
+
+        @staticmethod
+        def to_checksum_address(a):
+            return a
+
+    class _Acct:
+        address = "0xBUYER"
+
+        def sign_transaction(self, tx):
+            captured["signed"] = tx
+            return type("S", (), {"raw_transaction": b"\x01\x02"})()
+
+    monkeypatch.setattr(web3, "Web3", _Web3)
+    monkeypatch.setattr(eth_account.Account, "from_key", staticmethod(lambda k: _Acct()))
+
+
+def test_give_feedback_real_builds_and_sends(monkeypatch):
+    monkeypatch.setenv("WALLET_PRIVATE_KEY", "0x" + "11" * 32)
+    monkeypatch.setenv("SELLER_AGENT_IDS", '{"gamma": 42}')
+    captured: dict = {}
+    _install_fake_chain(monkeypatch, captured)
+
+    fb = give_feedback("gamma", 0.2, label="bad", reasons=["empty result"],
+                       mode="real", network="eip155:84532")
+
+    assert fb.mock is False
+    assert fb.tx_hash == "0x" + "ab" * 32                     # 0x-prefixed tx hash from send
+    agent_id, value, decimals, tag1, tag2, endpoint, uri, fbhash = captured["args"]
+    assert agent_id == 42 and value == 20 and decimals == 2   # 0.2 -> 20/2
+    assert tag1 == "quality" and tag2 == "bad"
+    assert isinstance(fbhash, bytes) and len(fbhash) == 32     # bytes32 commitment
+    assert captured["tx"]["chainId"] == 84532
+    assert captured["tx"]["nonce"] == 3
+    assert "sent" in captured                                  # actually broadcast (to fake)
+
+
+def test_give_feedback_real_needs_wallet(monkeypatch):
+    monkeypatch.delenv("WALLET_PRIVATE_KEY", raising=False)
+    try:
+        give_feedback("7", 0.2, label="bad", reasons=["x"], mode="real", network="eip155:84532")
+    except RuntimeError as e:
+        assert "WALLET_PRIVATE_KEY" in str(e)
+        return
+    raise AssertionError("expected RuntimeError without wallet key")
