@@ -4,129 +4,121 @@
 
 </div>
 
-# AI Purchasing Agent — x402 pay-per-call model router
+# AI Purchasing Agent — x402 model marketplace
 
-An agent that, given a user request + priority, **picks the best AI model by benchmark score**, **pays per call with x402 + ERC-3009 stablecoin micropayments**, fetches the result, and (extension) **records ERC-8004 reputation** when a result is bad.
+Say what you want in plain language; the agent **picks the best seller** from a marketplace (benchmark score + price + speed + reputation), **pays per call with x402 + ERC-3009 micropayments**, returns a **real model answer**, and records **ERC-8004 reputation** — including your 👍/👎 — so bad sellers sink next time.
 
-> ✅ **Live-verified on Base Sepolia.** A real on-chain x402 payment settled end-to-end: benchmark selection → gasless ERC-3009 USDC transfer → result. Proof tx: [`0xabb329c2…b7a3`](https://sepolia.basescan.org/tx/0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3) (USDC moved buyer→seller, gas paid by the facilitator).
+> ✅ **Live-verified.** Real on-chain x402 payment on Base Sepolia ([tx `0xabb329c2…`](https://sepolia.basescan.org/tx/0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3), gasless USDC transfer). Real answers via **OpenRouter** (Llama/DeepSeek/Qwen) and **Google Gemini** (2.5 Flash).
 
-📐 Full system diagram + sequence: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+📐 System diagram + sequence: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · 다음 할 일: [docs/ROADMAP.md](docs/ROADMAP.md) · 키/지갑: [docs/HANDOFF.md](docs/HANDOFF.md)
+
+*(한국어: [README.ko.md](README.ko.md))*
 
 ---
 
 ## What it does
 
 ```
-user request + priority ("coding, cheap")
-  → [selector]  weight benchmark scores (Artificial Analysis) by priority
-  → [catalog]   map the winner to a seller endpoint
-  → [payer]     x402: 402 → sign ERC-3009 authorization → retry → settle
-  → result
-  → [judge]     score the answer
-  → [reputation] if bad, ERC-8004 giveFeedback on the seller
+natural-language request  ("write a binary search in Rust", "빠르고 저렴하게")
+  → [nl_priority] infer priority (coding / cheap / fast / …) from the prompt
+  → [selector]    score OFFERS by benchmark × priority, then apply reputation
+  → [payer]       x402: 402 → sign ERC-3009 → retry → settle
+  → [backend]     real inference (OpenRouter / Gemini / …)
+  → [judge]       machine delivery-check (empty/refusal/error)  ── quality is human's call
+  → [reputation]  human 👍/👎 (scripts/rate.py) → feeds the NEXT selection
 ```
 
-**Why this shape.** As AI shifts from flat-rate to pay-per-call, the edge moves to *picking the right model and paying for it efficiently*. x402 makes per-call micropayments viable (no fixed fee), and an agent can pay autonomously (M2M). This is the buyer side of that world.
+**Why this shape.** As AI shifts to pay-per-call, the edge is *picking the right model+seller and paying efficiently*. x402 enables no-fixed-fee micropayments an agent can make autonomously (M2M). This is the buyer side of that market.
 
-## Architecture
+## Marketplace (offers, not just models)
 
-```
-┌──────────────── Buyer Agent (Python) ────────────────┐
-│ selector → catalog → payer (x402 client) → judge      │
-└───────────────────────┬───────────────────────────────┘
-                        │ x402 pay-per-call (USDC, Base Sepolia)
-                        ▼
-            ┌──────────────────────────────┐
-            │  self-built x402 proxy seller │  backend = mock | heurist
-            │  (FastAPI + x402 middleware)  │            | openrouter | anthropic | openai
-            └──────────────────────────────┘
-                        │
-                        ▼ (extension, when result is bad)
-            ERC-8004 Reputation Registry — giveFeedback()
-```
-
-**One seller: our x402 proxy.** As of 2026 **no third party sells pay-per-token LLM chat via x402 on testnet** — Heurist's x402 sells Mesh agent *tools* on Base **mainnet** (real USDC), and its LLM gateway is API-key only. So all LLM inference is x402-paid to our own proxy, and the real model is fulfilled by a swappable `backend` (free/mock during dev, real keys for the final run). The buyer is verified against a real third-party x402 envelope: `python scripts/probe_real_402.py`.
-
-## Live proof
+A **catalog entry is an offer** = one *seller* selling one *model*. The **same open model is sold by multiple sellers** who compete on **price and speed**; **reputation** (learned from feedback) shifts the winner over time.
 
 ```
-tx 0xabb329c2e454ea8f81bb964786a08fabffbad16afd052b0a7360c4a0cfb6b7a3   (Base Sepolia)
-status   SUCCESS, block 43528892
-transfer 0.001 USDC  buyer 0x29d3…5940 → seller 0x1868…9Eb5
-gas      paid by facilitator 0xd407…  (buyer is gasless — ERC-3009)
+same Llama 3.3, three sellers:      gamma $0.0012 / 35tps   (cheapest, slow)
+                                    beta  $0.0015 / 60tps
+                                    alpha $0.0020 / 90tps   (priciest, fastest)
+"cheap" → gamma   "fast" → alpha   gamma turns dishonest (👎) → next time → beta
 ```
 
-## Run (mock — no wallet, offline)
+**One proxy fronts real models.** As of 2026 no third party sells pay-per-token LLM chat via x402 on testnet, so all inference is x402-paid to our own proxy; the real model is served by a swappable `backend` (`openrouter_free` · `gemini` · `heurist` · `anthropic` · `openai` · `mock`). Buyers can also **discover offers live**: `GET /marketplace`.
+
+## Run (mock — no keys, offline)
 
 ```bash
+cd ~/ai-purchasing-agent
 pip install -r requirements.txt
-pytest -q                                   # 17 tests
+pytest -q                                       # 33 tests
 
 # terminal 1: x402 proxy (mock crypto, mock backend)
+cd ~/ai-purchasing-agent
 X402_MODE=mock PROXY_BACKEND=mock uvicorn seller_proxy.main:app --port 8402
-# terminal 2: select → 402 → mock pay → result → judge
-X402_MODE=mock python -m agent.main --prompt "Write binary search in Rust" --priority coding
-python scripts/demo.py
+# terminal 2:
+cd ~/ai-purchasing-agent
+X402_MODE=mock python -m agent.main --prompt "빠르고 저렴하게 요약해줘"   # NL → select → pay → judge
+curl -s localhost:8402/marketplace | python3 -m json.tool                # discover offers
+python scripts/rate.py gamma down                                        # human 👎 → avoided next time
+python scripts/spend.py                                                  # spend summary
 ```
-Priority labels: `intelligence coding agentic cheap fast balanced` (combinable).
-See the reputation loop: run the proxy with `PROXY_BACKEND=mock_bad` (seller returns a refusal → judge marks it bad → `giveFeedback` is written to `data/reputation_ledger.json`).
 
-## Run (live on-chain payment — Base Sepolia testnet)
+## Run (real answers — one key)
 
 ```bash
+cd ~/ai-purchasing-agent && python scripts/setup_keys.py    # local, hidden input → .env
+#   OpenRouter (free tier) covers open models; Gemini free tier via GEMINI_API_KEY
+cd ~/ai-purchasing-agent && set -a; . ./.env; set +a
+uvicorn seller_proxy.main:app --port 8402                   # PROXY_BACKEND unset → per-model routing
+# terminal 2:
+cd ~/ai-purchasing-agent && set -a; . ./.env; set +a
+python -m agent.main --prompt "빠르게: 블록체인 한 문장 설명"   # → Gemini/OpenRouter real answer
+```
+
+## Run (live on-chain payment — Base Sepolia)
+
+```bash
+cd ~/ai-purchasing-agent
 pip install "x402[evm]"
-python scripts/gen_wallet.py                # writes .env with 2 throwaway testnet wallets
-#  → fund the printed BUYER address at https://faucet.circle.com (Base Sepolia USDC)
-
-set -a; . ./.env; set +a
-uvicorn seller_proxy.real:app --port 8402   # terminal 1
-python -m agent.main --prompt "Write binary search in Rust" --priority coding  # terminal 2
+python scripts/gen_wallet.py         # throwaway wallet → .env, fund BUYER at faucet.circle.com
+cd ~/ai-purchasing-agent && set -a; . ./.env; set +a
+uvicorn seller_proxy.real:app --port 8402                   # X402_MODE=real
+# terminal 2: python -m agent.main --prompt "..." --priority coding
 ```
-The printed tx hash settles on [sepolia.basescan.org](https://sepolia.basescan.org). Public facilitator (default) needs **no CDP key** — a funded wallet is enough; gas is sponsored.
-
-### Real model answers (Phase 5)
-By default the proxy runs `PROXY_BACKEND=mock` (echoes the prompt). To get a real answer from the *selected* model, leave `PROXY_BACKEND` unset so each model routes to its catalog `backend`, and set that backend's key. Cheapest path — a **free OpenRouter key ($0)** covers the open models:
-```bash
-# in .env: OPENROUTER_API_KEY=...   (and unset PROXY_BACKEND, or set it to openrouter_free)
-# then the winning open model returns a real answer; frontier models need ANTHROPIC_API_KEY / OPENAI_API_KEY
-```
-`backend` per model: open models → `heurist`/`openrouter_free`, `claude-opus-4-8` → `anthropic`, `gpt-4o` → `openai`. Pick a priority that selects a model whose key you have (e.g. `--priority cheap` → an open model).
-
-> ⚠️ In `.env`, set `PROXY_PRICE` as a **bare number** (`0.001`). A leading `$` (`$0.001`) gets shell-expanded by `set -a; . ./.env` (`$0` = script name) and corrupts the value.
+tx settles on [sepolia.basescan.org](https://sepolia.basescan.org). Public facilitator needs **no CDP key**; gas is sponsored. Payer enforces the cap against the **actual 402 amount** and refuses over-cap before signing.
 
 ## Project structure
 
 | Path | Role |
 |------|------|
-| `agent/selector.py` | AA score fetch + priority→weight normalized scoring |
-| `agent/catalog.py` | model → seller/backend mapping, priority presets |
-| `agent/payer.py` | x402 client (mock handshake + real `x402[evm]` session) + spend guardrails |
-| `agent/judge.py` | result quality verdict (heuristic; LLM-judge stub) |
-| `agent/main.py` | orchestrator (request→select→pay→result→judge→feedback) |
-| `seller_proxy/main.py` | mock x402-gated seller (real 402 handshake, mock crypto) |
+| `agent/nl_priority.py` | natural-language prompt → priority labels (rules; LLM stub) |
+| `agent/selector.py` | benchmark × priority scoring over offers + reputation factor |
+| `agent/catalog.py` | offers (seller × model); loaded from yaml or `/marketplace` |
+| `agent/discovery.py` | fetch offers live from a marketplace endpoint |
+| `agent/payer.py` | x402 client (mock + real `x402[evm]`) + spend guardrails + errors |
+| `agent/judge.py` | machine delivery-check (not a quality judge) |
+| `agent/accounting.py` | spend ledger + summary |
+| `agent/main.py` | orchestrator (request→infer→select→pay→answer→judge→feedback) |
+| `seller_proxy/main.py` | mock x402 seller + `GET /marketplace` discovery |
 | `seller_proxy/real.py` | real x402 seller (x402 v2 middleware + facilitator) |
-| `seller_proxy/backends.py` | provider-agnostic backends |
-| `reputation/feedback.py` | ERC-8004 giveFeedback (mock ledger / on-chain stub) |
-| `scripts/` | `gen_wallet.py`, `demo.py`, `probe_real_402.py` |
+| `seller_proxy/backends.py` | provider-agnostic backends (openrouter/gemini/heurist/anthropic/openai/mock) |
+| `reputation/feedback.py` | ERC-8004 giveFeedback + `load_reputation` (human-weighted) |
+| `scripts/` | `setup_keys.py` · `gen_wallet.py` · `rate.py` (👍/👎) · `spend.py` · `demo.py` · `probe_real_402.py` |
 
-## Phases
+## Status
 
-- ✅ **1** Benchmark selection (offline)
-- ✅ **2** x402 proxy seller + payer + spend guardrails (mock crypto, real 402 handshake)
-- ✅ **A** Real on-chain x402 payment — **live-verified on Base Sepolia**
-- ✅ **3** Heurist reality-checked (mainnet tool seller, not testnet LLM x402) + real-402 probe
-- ✅ **4** ERC-8004 reputation loop (mock ledger; on-chain stub)
-- ✅ **5 (code)** Per-model backend routing (catalog `backend`) + current model ids. Real answers need one API key — see above.
+- ✅ Benchmark selection · NL priority · multi-seller marketplace (price/speed/reputation) · discovery endpoint
+- ✅ x402 payment (mock + **real, live-verified on Base Sepolia**) · actual-amount guardrails
+- ✅ Real answers (OpenRouter + Gemini, live) · delivery-check · human 👍/👎 → reputation loop · spend accounting
+- ⬜ On-chain giveFeedback · LLM priority inference · objective verification (code=tests) — see `docs/ROADMAP.md`
 
 ## Security
 
-- **Testnet only. Disposable wallet only.** A private key controls *all* chains — never put a MetaMask / mainnet / funded key in `.env`. `gen_wallet.py` makes throwaway keys; `.env` is gitignored and never printed.
-- Spend guardrails: `MAX_USDC_PER_CALL`, `MAX_USDC_PER_SESSION` — the agent refuses to pay above caps.
-- History was audited for secrets/keys before this repo went public — only disposable testnet addresses and a public Hardhat test key appear.
+- **Testnet + disposable wallet only.** A private key controls every chain — never put a MetaMask/mainnet/funded key in `.env`. `scripts/setup_keys.py` uses hidden local input; `.env` is gitignored and never committed (verified: no secrets in history).
+- Spend guardrails: `MAX_USDC_PER_CALL` / `MAX_USDC_PER_SESSION`, checked against the real 402 amount.
+- **Never paste API keys into chat or screenshots** — if exposed, revoke and reissue.
 
-## Verified facts (researched + introspected, not assumed)
+## Verified facts (researched + live, not assumed)
 
-- x402 Python API pinned to installed **v2.14.0** (`eip155:84532` CAIP-2, not `"base-sepolia"`).
-- Base Sepolia USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e`; public facilitator `https://x402.org/facilitator`.
-- Heurist x402 = mainnet Mesh tools; not a testnet LLM seller (live-curled).
-- ERC-8004 `giveFeedback(...)` interface + Base Sepolia Reputation Registry `0x8004B663…` (Draft — verify before on-chain use).
+- x402 Python v2.14.0 (`eip155:84532` CAIP-2). Base Sepolia USDC `0x036CbD…CF7e`; public facilitator `https://x402.org/facilitator`.
+- Heurist x402 = mainnet Mesh tools, not a testnet LLM seller (live-curled).
+- Gemini current model `gemini-2.5-flash` (2.0 retired; verified via models API). Keys now `AQ.…` format.
+- ERC-8004 `giveFeedback(...)` + Base Sepolia Reputation Registry `0x8004B663…` (Draft — verify before on-chain use).
