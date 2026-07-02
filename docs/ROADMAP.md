@@ -10,10 +10,10 @@
 
 ### 1순위 — 정확성 (지금도 살짝 버그)
 - [x] **실제 금액 상한 체크** ✅ `_extract_requirements`+`_required_usdc`로 402의 실제 금액 파싱(mock=body 달러, real=PAYMENT-REQUIRED 헤더 atomic). mock·real 둘 다 서명 전 상한 검사, 영수증도 실제 금액. 검증: real 상한 0.0005<0.001 → 서명 전 거부.
-- [ ] **결제 전 잔액 확인**: 지갑 USDC 잔액 조회 후 부족하면 미리 중단(라이브에서 겪은 실패 예방).
+- [x] **결제 전 잔액 확인** ✅ `_precheck_balance`: 서명 전 지갑 USDC 잔액(ERC-20 balanceOf) 조회 → 부족하면 `PaymentError`로 조기 중단(faucet 안내). 못 읽으면 best-effort로 진행(정산이 최종 게이트).
 
 ### 2순위 — 신뢰성
-- [ ] **tx 확정 대기**: 200 받아도 온체인 confirmation 안 기다림. tx hash 폴링으로 진짜 정산 확인.
+- [x] **tx 확정 대기** ✅ `_wait_for_confirmation`: 200을 최종으로 안 믿음. tx receipt 폴링(status=1 확인/revert=실패/타임아웃). 영수증 `confirmed` 필드 + CLI 표시. `X402_WAIT_CONFIRM=0`으로 opt-out, `X402_CONFIRM_TIMEOUT` 조정.
 - [~] **에러 처리** ✅ real 경로 명확한 에러(PaymentError: 잔액부족/검증실패·셀러/facilitator 에러) + 5xx 재시도 1회. ⬜ 남음: facilitator 폴백, 봉투 v1/v2 자동 협상.
 
 ### 3순위 — 운영

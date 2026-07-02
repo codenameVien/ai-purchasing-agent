@@ -110,7 +110,8 @@ tx는 [sepolia.basescan.org](https://sepolia.basescan.org)에서 정산 확인. 
 - ✅ 진짜 답변(OpenRouter + Gemini, 라이브) · 배달체크 · 사람 👍/👎 → 평판 루프 · 지출 회계
 - ✅ LLM 우선순위 추론(`--infer llm`) · 객관 검증(`--judge objective`: 코드 컴파일/실행·수학 검산)
 - ✅ 온체인 giveFeedback을 **검증된 ERC-8004 ABI**로 배선(코드+테스트; 실 broadcast는 셀러 Identity 등록 + 지갑 충전 필요)
-- ⬜ tx 확정 대기 · 결제 전 잔액 확인 · 셀러 Identity 등록 — `docs/ROADMAP.md`
+- ✅ 실결제 강화: 결제 전 USDC 잔액 확인(서명 전 중단) · 온체인 확정 대기(200 맹신 안 함)
+- ⬜ 셀러 Identity 등록 · CDP facilitator · 모델별 동적 가격 — `docs/ROADMAP.md`
 
 ## 보안
 

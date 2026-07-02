@@ -20,6 +20,19 @@ import requests
 
 from .catalog import CatalogEntry
 
+# CAIP-2 network -> JSON-RPC endpoint + USDC token address (override RPC via X402_RPC_URL).
+_RPC = {"eip155:84532": "https://sepolia.base.org", "eip155:8453": "https://mainnet.base.org"}
+_USDC = {
+    "eip155:84532": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",   # Base Sepolia
+    "eip155:8453": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",    # Base mainnet
+}
+_ERC20_ABI = [
+    {"constant": True, "inputs": [{"name": "a", "type": "address"}], "name": "balanceOf",
+     "outputs": [{"name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"},
+    {"constant": True, "inputs": [], "name": "decimals",
+     "outputs": [{"name": "", "type": "uint8"}], "stateMutability": "view", "type": "function"},
+]
+
 
 class SpendingError(Exception):
     """Raised when a payment would exceed a configured cap."""
@@ -58,6 +71,7 @@ class PaymentReceipt:
     paid_usdc: float
     tx_hash: str
     mock: bool
+    confirmed: bool | None = None   # True/False after on-chain wait; None = not checked (mock)
 
 
 def _build_payment_header(requirements: dict, amount: float, mode: str) -> str:
@@ -93,6 +107,71 @@ def build_paying_session(network: str | None = None):
     return x402_requests(client)
 
 
+def _rpc_web3(network: str):
+    """Web3 connected to the network's RPC, or None if web3/RPC is unavailable.
+    Used for read-only pre-checks — the on-chain settlement is the real source of
+    truth, so a failed read here degrades to 'skip the pre-check', never a false OK.
+    """
+    # NOTE: if you set X402_RPC_URL it MUST point at the same chain as X402_NETWORK —
+    # the USDC token address is keyed by network, so a mismatched RPC reads the wrong token.
+    rpc = os.environ.get("X402_RPC_URL") or _RPC.get(network)
+    if not rpc:
+        return None
+    try:
+        from web3 import Web3
+        return Web3(Web3.HTTPProvider(rpc))
+    except Exception:
+        return None
+
+
+def _usdc_balance(network: str) -> float | None:
+    """Wallet USDC balance (float), or None if it can't be read."""
+    token = _USDC.get(network)
+    key = os.environ.get("WALLET_PRIVATE_KEY")
+    w3 = _rpc_web3(network)
+    if not (token and key and w3):
+        return None
+    try:
+        from eth_account import Account
+        from web3 import Web3
+        addr = Account.from_key(key).address
+        c = w3.eth.contract(address=Web3.to_checksum_address(token), abi=_ERC20_ABI)
+        raw = c.functions.balanceOf(addr).call()
+        decimals = c.functions.decimals().call()
+        return raw / (10 ** decimals)
+    except Exception:
+        return None
+
+
+def _precheck_balance(amount: float, network: str) -> None:
+    """Abort BEFORE signing if the wallet plainly can't cover `amount` (avoids a
+    live payment that would fail on-chain). Best-effort: if the balance can't be
+    read, we proceed and let settlement be the gate."""
+    bal = _usdc_balance(network)
+    if bal is not None and bal < amount:
+        raise PaymentError(
+            f"insufficient USDC: wallet holds {bal:.6f}, need {amount:.6f}. "
+            "Fund the buyer address at https://faucet.circle.com (testnet).")
+
+
+def _wait_for_confirmation(tx_hash: str, network: str, timeout: float) -> bool | None:
+    """Poll for the tx receipt so a 200 isn't trusted before the chain settles.
+    Returns True (status=1) / False (on-chain revert) / None (unknown: timed out,
+    unreadable, or nothing to wait on). A slow-but-fine tx is 'unknown', not 'failed'.
+    """
+    if not tx_hash:
+        return None
+    h = tx_hash if tx_hash.startswith("0x") else "0x" + tx_hash   # node rejects bare-hex
+    w3 = _rpc_web3(network)
+    if not w3:
+        return None
+    try:
+        rcpt = w3.eth.wait_for_transaction_receipt(h, timeout=timeout)
+    except Exception:
+        return None         # timeout / not-found within window -> unknown, NOT a revert
+    return int(rcpt.get("status", 0)) == 1
+
+
 def _real_pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard,
                        url: str | None, timeout: float) -> dict:
     target = url or entry.seller_url
@@ -110,6 +189,8 @@ def _real_pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard,
     except requests.RequestException:
         pass                                       # fall back to catalog price
     guard.authorize(amount)                        # actual required amount vs cap
+    network = os.environ.get("X402_NETWORK", "eip155:84532")
+    _precheck_balance(amount, network)             # early abort if wallet can't cover it
     session = build_paying_session()
 
     # Pay, with clear errors + one retry on a transient seller/facilitator 5xx.
@@ -129,7 +210,12 @@ def _real_pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard,
     guard.record(amount)
     # v2 settlement comes back in the PAYMENT-RESPONSE header (base64 JSON).
     tx = _decode_tx(r.headers.get("PAYMENT-RESPONSE", r.headers.get("X-PAYMENT-RESPONSE", "")))
-    return {"result": r.json(), "receipt": PaymentReceipt(paid_usdc=amount, tx_hash=tx, mock=False)}
+    # Don't trust the 200 as final — wait for on-chain confirmation (opt out via X402_WAIT_CONFIRM=0).
+    confirmed = None
+    if os.environ.get("X402_WAIT_CONFIRM", "1") not in ("0", "false", "False"):
+        confirmed = _wait_for_confirmation(tx, network, float(os.environ.get("X402_CONFIRM_TIMEOUT", "30")))
+    return {"result": r.json(),
+            "receipt": PaymentReceipt(paid_usdc=amount, tx_hash=tx, mock=False, confirmed=confirmed)}
 
 
 def _extract_requirements(resp) -> dict | None:

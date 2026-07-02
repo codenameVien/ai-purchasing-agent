@@ -79,7 +79,8 @@ def run(prompt: str, priorities=None, use_live: bool = False,
         else:
             # On-chain: the tx hash is the source of truth for the actual amount
             # (the proxy's PROXY_PRICE). paid_usdc here is only the authorized cap.
-            print(f"\n[settled on-chain | tx {receipt.tx_hash} | authorized <= {receipt.paid_usdc} USDC]")
+            status = {True: "confirmed ✓", False: "NOT confirmed ✗", None: "unconfirmed"}[receipt.confirmed]
+            print(f"\n[settled on-chain ({status}) | tx {receipt.tx_hash} | authorized <= {receipt.paid_usdc} USDC]")
     print(f"\n--- Result ---\n{content}")
 
     # Judge the result; record ERC-8004 reputation feedback if it was bad.

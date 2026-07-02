@@ -112,7 +112,8 @@ tx settles on [sepolia.basescan.org](https://sepolia.basescan.org). Public facil
 - ✅ Real answers (OpenRouter + Gemini, live) · delivery-check · human 👍/👎 → reputation loop · spend accounting
 - ✅ LLM priority inference (`--infer llm`) · objective verification (`--judge objective`: code compiles/runs, arithmetic)
 - ✅ On-chain giveFeedback wired against the **verified ERC-8004 ABI** (code + tests; live broadcast needs seller Identity-Registry registration + funded wallet)
-- ⬜ tx-confirmation wait · pre-pay balance check · seller Identity registration — see `docs/ROADMAP.md`
+- ✅ Real-payment hardening: pre-pay USDC balance check (abort before signing) · on-chain confirmation wait (don't trust the 200)
+- ⬜ seller Identity registration · CDP facilitator · dynamic per-model pricing — see `docs/ROADMAP.md`
 
 ## Security
 
