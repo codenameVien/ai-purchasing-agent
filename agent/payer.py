@@ -25,6 +25,10 @@ class SpendingError(Exception):
     """Raised when a payment would exceed a configured cap."""
 
 
+class PaymentError(Exception):
+    """Raised when a real payment fails (rejected, seller/facilitator error)."""
+
+
 @dataclass
 class SpendGuard:
     per_call: float
@@ -107,8 +111,21 @@ def _real_pay_and_call(entry: CatalogEntry, prompt: str, guard: SpendGuard,
         pass                                       # fall back to catalog price
     guard.authorize(amount)                        # actual required amount vs cap
     session = build_paying_session()
-    r = session.post(target, json=body, timeout=timeout)
-    r.raise_for_status()
+
+    # Pay, with clear errors + one retry on a transient seller/facilitator 5xx.
+    r = None
+    for attempt in (1, 2):
+        r = session.post(target, json=body, timeout=timeout)
+        if r.status_code == 402:
+            raise PaymentError("payment rejected — insufficient USDC or verification failed "
+                               "(check wallet balance / facilitator)")
+        if r.status_code >= 500 and attempt == 1:
+            continue                               # transient: retry once
+        break
+    try:
+        r.raise_for_status()
+    except requests.HTTPError as e:
+        raise PaymentError(f"seller/facilitator error: {e}") from e
     guard.record(amount)
     # v2 settlement comes back in the PAYMENT-RESPONSE header (base64 JSON).
     tx = _decode_tx(r.headers.get("PAYMENT-RESPONSE", r.headers.get("X-PAYMENT-RESPONSE", "")))

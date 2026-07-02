@@ -61,7 +61,13 @@ def _verify_and_settle(payment_header: str, body: dict) -> str | None:
 
 @app.post("/inference")
 async def inference(request: Request):
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "invalid JSON body"})
+    if not isinstance(body, dict) or not body.get("messages"):
+        return JSONResponse(status_code=400, content={"error": "missing 'messages'"})
+
     payment = request.headers.get("X-PAYMENT")
     if not payment:
         return _payment_required()

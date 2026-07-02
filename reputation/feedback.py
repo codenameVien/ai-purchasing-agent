@@ -56,10 +56,15 @@ def _load_ledger(path: str) -> list[dict]:
     return []
 
 
+# human 👍/👎 is the real quality signal; the machine delivery-check is a weak prior.
+_SOURCE_WEIGHT = {"human": 3.0, "auto": 1.0}
+
+
 def load_reputation(ledger_path: str | None = None) -> dict[str, dict]:
     """Aggregate the feedback ledger into per-seller reputation.
 
-    Returns {agent_id: {"rep": 0..1 mean quality, "count": n}}. Feeds selector so
+    Returns {agent_id: {"rep": 0..1 weighted mean, "count": n, "human": h}}. Human
+    feedback is weighted more than the machine delivery-check. Feeds selector so
     sellers with bad history get down-ranked. Empty {} if no ledger yet.
     """
     path = ledger_path or _LEDGER_PATH
@@ -69,10 +74,15 @@ def load_reputation(ledger_path: str | None = None) -> dict[str, dict]:
         if not agent:
             continue
         q = rec["value"] / (10 ** rec.get("value_decimals", 0))   # decode 0..1 quality
-        acc = out.setdefault(agent, {"sum": 0.0, "count": 0})
-        acc["sum"] += q
+        w = _SOURCE_WEIGHT.get(rec.get("source", "auto"), 1.0)
+        acc = out.setdefault(agent, {"wsum": 0.0, "wtot": 0.0, "count": 0, "human": 0})
+        acc["wsum"] += q * w
+        acc["wtot"] += w
         acc["count"] += 1
-    return {a: {"rep": v["sum"] / v["count"], "count": v["count"]} for a, v in out.items()}
+        if rec.get("source") == "human":
+            acc["human"] += 1
+    return {a: {"rep": v["wsum"] / v["wtot"], "count": v["count"], "human": v["human"]}
+            for a, v in out.items()}
 
 
 def give_feedback(agent_id: str, score: float, *, label: str, reasons: list[str],

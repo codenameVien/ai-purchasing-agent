@@ -14,11 +14,12 @@ import os
 
 from reputation.feedback import give_feedback, load_reputation
 
+from .accounting import record_spend
 from .catalog import Catalog
 from .discovery import discover_catalog
 from .judge import judge
 from .nl_priority import infer_priorities
-from .payer import SpendGuard, SpendingError, pay_and_call
+from .payer import PaymentError, SpendGuard, SpendingError, pay_and_call
 from .selector import Ranked, fetch_scores, select
 
 
@@ -65,10 +66,14 @@ def run(prompt: str, priorities=None, use_live: bool = False,
         out = pay_and_call(winner.entry, prompt, guard, mode=mode, url=url)
     except SpendingError as e:
         raise SystemExit(f"payment refused by guardrail: {e}")
+    except PaymentError as e:
+        raise SystemExit(f"payment failed: {e}")
 
     receipt = out["receipt"]
     content = out["result"]["choices"][0]["message"]["content"]
     if receipt:
+        record_spend(winner.entry.seller_id, winner.entry.aa_slug, winner.entry.model_id,
+                     receipt.paid_usdc, receipt.tx_hash, receipt.mock)
         if receipt.mock:
             print(f"\n[paid {receipt.paid_usdc} USDC | MOCK tx {receipt.tx_hash}]")
         else:

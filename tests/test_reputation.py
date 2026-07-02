@@ -78,6 +78,18 @@ def test_human_rating_feeds_reputation(tmp_path):
     assert rep["beta"]["rep"] == 0.0      # 👎 -> zero reputation
 
 
+def test_human_outweighs_auto(tmp_path):
+    ledger = str(tmp_path / "ledger.json")
+    for _ in range(3):     # 3 machine 👍 (weight 1 each)
+        give_feedback("s", 1.0, label="good", reasons=["ok"], source="auto",
+                      mode="mock", ledger_path=ledger)
+    give_feedback("s", 0.0, label="human_bad", reasons=["bad"], source="human",
+                  mode="mock", ledger_path=ledger)   # 1 human 👎 (weight 3)
+    rep = load_reputation(ledger)["s"]
+    assert rep["rep"] == 0.5       # (3*1 + 3*0) / (3+3) — human balances 3 auto
+    assert rep["human"] == 1
+
+
 def test_auto_source_default(tmp_path):
     ledger = str(tmp_path / "ledger.json")
     fb = give_feedback("gamma", 0.2, label="bad", reasons=["x"], mode="mock", ledger_path=ledger)

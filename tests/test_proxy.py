@@ -33,6 +33,11 @@ def test_discover_catalog_matches_local():
     assert len(discovered.offers) == len(Catalog.load().offers)
 
 
+def test_rejects_missing_messages():
+    r = client.post("/inference", json={"model": "x"})   # no messages
+    assert r.status_code == 400
+
+
 def test_402_without_payment():
     r = client.post("/inference", json={"model": "x", "messages": [{"role": "user", "content": "hi"}]})
     assert r.status_code == 402
