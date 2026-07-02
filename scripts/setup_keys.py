@@ -68,10 +68,15 @@ def main() -> int:
         have = " (already set)" if vals.get(name) else ""
         print(f"● {name}{have}\n    why:   {why}\n    where: {where}")
         prompt = f"    paste {name} (Enter to skip): "
-        entered = getpass.getpass(prompt) if secret else input(prompt)
-        if entered.strip():
-            vals[name] = entered.strip()
-            print("    ✓ saved\n")
+        entered = (getpass.getpass(prompt) if secret else input(prompt)).strip()
+        if entered:
+            # getpass hides input, so users often paste twice -> exact duplicate. auto-fix.
+            if len(entered) % 2 == 0 and entered[: len(entered) // 2] == entered[len(entered) // 2:]:
+                entered = entered[: len(entered) // 2]
+                print("    ⚠ 중복 입력 감지 → 자동으로 한 번만 저장")
+            vals[name] = entered
+            mask = f"{entered[:4]}…{entered[-4:]}" if len(entered) > 8 else "****"
+            print(f"    ✓ 저장됨 ({len(entered)}자, {mask})\n")   # 값 안 보이게, 들어간 건 확인
         else:
             print("    – skipped\n")
     _write_env(vals)
