@@ -34,15 +34,20 @@ def test_priority_changes_winner():
 
 
 def test_sellers_compete_on_price_vs_speed():
-    """Same model, different sellers: cheapest ≠ fastest (price↔speed tradeoff)."""
+    """Same model, different sellers: cheapest ≠ fastest (price↔speed tradeoff).
+
+    Compared among the Llama sellers specifically (other models may rank higher
+    globally on a given axis — e.g. Gemini is faster overall)."""
     catalog, scores = _setup()
-    cheap = select("cheap", scores, catalog)[0]
-    fast = select("fast", scores, catalog)[0]
-    # both are Llama offers but from different sellers
-    assert cheap.entry.aa_slug == "llama-3.3-70b" and fast.entry.aa_slug == "llama-3.3-70b"
-    assert cheap.entry.seller_id == "gamma"   # cheapest, slow
-    assert fast.entry.seller_id == "alpha"    # priciest, fastest
-    assert cheap.entry.seller_id != fast.entry.seller_id
+
+    def top_llama(priority):
+        ranked = [r for r in select(priority, scores, catalog)
+                  if r.entry.aa_slug == "llama-3.3-70b"]
+        return ranked[0].entry.seller_id
+
+    assert top_llama("cheap") == "gamma"   # cheapest Llama seller (slow)
+    assert top_llama("fast") == "alpha"    # fastest Llama seller (priciest)
+    assert top_llama("cheap") != top_llama("fast")
 
 
 def test_deterministic():

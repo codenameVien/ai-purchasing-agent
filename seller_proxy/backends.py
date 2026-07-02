@@ -8,6 +8,7 @@ Selected by env PROXY_BACKEND:
   heurist        -> Heurist LLM gateway (HEURIST_API_KEY; API-key auth, NOT x402)
   anthropic      -> Claude (ANTHROPIC_API_KEY)   [Phase 5 final test]
   openai         -> GPT (OPENAI_API_KEY)          [Phase 5 final test]
+  gemini         -> Google Gemini (GEMINI_API_KEY; OpenAI-compatible endpoint)
 
 Note: Heurist's x402 path sells Mesh agent *tools* on Base mainnet, not LLM chat.
 Its LLM inference is API-key only — so Heurist open models are fulfilled here as a
@@ -48,6 +49,9 @@ def call_backend(body: dict) -> str:
     if backend == "openai":
         return _openai_compatible(body, "https://api.openai.com/v1/chat/completions",
                                   os.environ.get("OPENAI_API_KEY"))
+    if backend == "gemini":   # Google Gemini via its OpenAI-compatible endpoint
+        return _openai_compatible(body, "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                                  os.environ.get("GEMINI_API_KEY"))
     if backend == "anthropic":
         return _anthropic(body)
     raise ValueError(f"unknown PROXY_BACKEND: {backend}")

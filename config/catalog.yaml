@@ -78,6 +78,15 @@ offers:
     model_id: claude-opus-4-8
     price_usdc_per_call: 0.025
 
+  - aa_slug: gemini-2.0-flash
+    seller_id: google-store
+    seller: proxy
+    seller_url: http://localhost:8402/inference
+    backend: gemini
+    model_id: gemini-2.0-flash          # Gemini via OpenAI-compat; verify id at aistudio.google.com
+    price_usdc_per_call: 0.005
+    speed_tps: 230
+
 # Priority label -> weight vector over selection metrics.
 # Metrics: intelligence, coding, agentic (higher=better),
 #          cheap (lower OFFER price=better), fast (higher tps=better).
