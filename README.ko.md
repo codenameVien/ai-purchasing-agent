@@ -101,7 +101,8 @@ tx는 [sepolia.basescan.org](https://sepolia.basescan.org)에서 정산 확인. 
 | `seller_proxy/real.py` | real x402 셀러 (x402 v2 미들웨어 + facilitator) |
 | `seller_proxy/backends.py` | provider-agnostic 백엔드(openrouter/gemini/heurist/anthropic/openai/mock) |
 | `reputation/feedback.py` | ERC-8004 giveFeedback + `load_reputation`(사람 가중) |
-| `scripts/` | `setup_keys.py` · `gen_wallet.py` · `rate.py`(👍/👎) · `spend.py` · `demo.py` · `probe_real_402.py` |
+| `reputation/identity.py` | ERC-8004 Identity Registry — 셀러를 온체인 에이전트로 등록 |
+| `scripts/` | `setup_keys.py` · `gen_wallet.py` · `register_seller.py` · `rate.py`(👍/👎) · `spend.py` · `demo.py` · `probe_real_402.py` |
 
 ## 상태
 
@@ -111,7 +112,8 @@ tx는 [sepolia.basescan.org](https://sepolia.basescan.org)에서 정산 확인. 
 - ✅ LLM 우선순위 추론(`--infer llm`) · 객관 검증(`--judge objective`: 코드 컴파일/실행·수학 검산)
 - ✅ 온체인 giveFeedback을 **검증된 ERC-8004 ABI**로 배선(코드+테스트; 실 broadcast는 셀러 Identity 등록 + 지갑 충전 필요)
 - ✅ 실결제 강화: 결제 전 USDC 잔액 확인(서명 전 중단) · 온체인 확정 대기(200 맹신 안 함)
-- ⬜ 셀러 Identity 등록 · CDP facilitator · 모델별 동적 가격 — `docs/ROADMAP.md`
+- ✅ 셀러 온체인 Identity: `register_agent` + `scripts/register_seller.py`(ERC-8004 Identity Registry; 코드+테스트 — 등록되면 실 giveFeedback 발동 가능)
+- ⬜ 실 등록/broadcast(테스트넷 지갑 충전 필요) · CDP facilitator · 모델별 동적 가격 — `docs/ROADMAP.md`
 
 ## 보안
 

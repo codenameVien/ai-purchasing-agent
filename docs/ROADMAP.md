@@ -70,7 +70,8 @@
 ## H. reputation (감사/평판) 확장
 
 - [x] **평판 → selector 반영 (루프 완성)** ✅ 구현됨. `load_reputation()`이 원장 집계 → `select(reputation=..., reputation_weight=)`가 factor 적용해 나쁜 셀러 하락. 라이브 데모: 1회차 bad → 2회차 그 셀러 점수 하락. (default weight 0.5 = 수정자, 높이면 winner flip)
-- [~] **온체인 giveFeedback 실구현** ✅ 코드+테스트 완성 `_give_feedback_real`: web3로 `giveFeedback(uint256 agentId,int128 value,uint8 valueDecimals,string tag1,string tag2,string endpoint,string feedbackURI,bytes32 feedbackHash)` build→sign→send. **ABI 실검증**(erc-8004/erc-8004-contracts `abis/ReputationRegistry.json`, 레포에 저장). msg.sender=buyer=client, 컨트랙트가 self-feedback 차단 → 결제자가 피드백 = 정확. 테스트는 web3 mock(실 broadcast 없음). `REPUTATION_MODE=real`에서만 발동(기본 mock). ⬜ 남음(실 broadcast 전제): 셀러 ERC-721 Identity Registry 등록 후 `SELLER_AGENT_IDS='{"gamma":<tokenId>}'` 매핑 + 지갑 충전. 미등록 셀러는 명확히 차단(tokenId 위조 불가).
+- [~] **온체인 giveFeedback 실구현** ✅ 코드+테스트 완성 `_give_feedback_real`: web3로 `giveFeedback(uint256 agentId,int128 value,uint8 valueDecimals,string tag1,string tag2,string endpoint,string feedbackURI,bytes32 feedbackHash)` build→sign→send. **ABI 실검증**(erc-8004/erc-8004-contracts `abis/ReputationRegistry.json`, 레포에 저장). msg.sender=buyer=client, 컨트랙트가 self-feedback 차단 → 결제자가 피드백 = 정확. 테스트는 web3 mock(실 broadcast 없음). `REPUTATION_MODE=real`에서만 발동(기본 mock). 미등록 셀러는 명확히 차단(tokenId 위조 불가).
+- [x] **셀러 Identity 등록 도구** ✅ `reputation/identity.py` `register_agent`(ERC-8004 Identity Registry `register()`/`register(agentURI)`, ABI 실검증, `Registered` 이벤트로 tokenId 파싱) + `scripts/register_seller.py`. gen_wallet이 `SELLER_PRIVATE_KEY`(buyer와 분리, self-feedback 차단 만족) 발급. 테스트 web3 mock. ⬜ 남음(실 broadcast): 셀러 지갑에 Base Sepolia ETH(가스) 충전 후 등록 실행 → `SELLER_AGENT_IDS` 매핑. **되돌릴 수 없는 온체인 tx = 사용자 승인 후.**
 - [x] **입력원 = 사람 좋아요/싫어요** ✅ `scripts/rate.py`로 사람 👍/👎(source="human"). judge(auto)는 배달실패만. 둘 다 같은 reputation으로. (UI화·human 가중은 남음)
 
 ## E. 기타 (teardown 진행하며 추가 예정)

@@ -31,6 +31,10 @@ def main() -> int:
         "# auto-generated throwaway TESTNET wallets. NEVER commit. NEVER reuse a real key.",
         "X402_MODE=real",
         f"WALLET_PRIVATE_KEY={buyer.key.hex()}",
+        # Seller's own key — needed ONLY to self-register on the ERC-8004 Identity
+        # Registry (scripts/register_seller.py). Must differ from the buyer key so the
+        # buyer can leave feedback (the registry blocks self-feedback). Disposable.
+        f"SELLER_PRIVATE_KEY={seller.key.hex()}",
         "X402_NETWORK=eip155:84532",
         "X402_FACILITATOR_URL=https://x402.org/facilitator",
         f"X402_PAY_TO={seller.address}",
@@ -46,9 +50,10 @@ def main() -> int:
     os.chmod(ENV, 0o600)
 
     print(f"wrote {ENV} (chmod 600, gitignored)")
-    print(f"BUYER_ADDRESS  (FUND THIS at faucet.circle.com, Base Sepolia): {buyer.address}")
-    print(f"SELLER_ADDRESS (receives; no funding needed)                 : {seller.address}")
-    print("private key is in .env only — not printed here.")
+    print(f"BUYER_ADDRESS  (FUND w/ USDC at faucet.circle.com, Base Sepolia): {buyer.address}")
+    print( "SELLER_ADDRESS (receives payments; fund w/ a little Base Sepolia ETH")
+    print(f"                only if you'll register it on-chain)             : {seller.address}")
+    print("private keys are in .env only — not printed here.")
     return 0
 
 

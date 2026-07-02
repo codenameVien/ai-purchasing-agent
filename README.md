@@ -103,7 +103,8 @@ tx settles on [sepolia.basescan.org](https://sepolia.basescan.org). Public facil
 | `seller_proxy/real.py` | real x402 seller (x402 v2 middleware + facilitator) |
 | `seller_proxy/backends.py` | provider-agnostic backends (openrouter/gemini/heurist/anthropic/openai/mock) |
 | `reputation/feedback.py` | ERC-8004 giveFeedback + `load_reputation` (human-weighted) |
-| `scripts/` | `setup_keys.py` · `gen_wallet.py` · `rate.py` (👍/👎) · `spend.py` · `demo.py` · `probe_real_402.py` |
+| `reputation/identity.py` | ERC-8004 Identity Registry — register a seller as an on-chain agent |
+| `scripts/` | `setup_keys.py` · `gen_wallet.py` · `register_seller.py` · `rate.py` (👍/👎) · `spend.py` · `demo.py` · `probe_real_402.py` |
 
 ## Status
 
@@ -113,7 +114,8 @@ tx settles on [sepolia.basescan.org](https://sepolia.basescan.org). Public facil
 - ✅ LLM priority inference (`--infer llm`) · objective verification (`--judge objective`: code compiles/runs, arithmetic)
 - ✅ On-chain giveFeedback wired against the **verified ERC-8004 ABI** (code + tests; live broadcast needs seller Identity-Registry registration + funded wallet)
 - ✅ Real-payment hardening: pre-pay USDC balance check (abort before signing) · on-chain confirmation wait (don't trust the 200)
-- ⬜ seller Identity registration · CDP facilitator · dynamic per-model pricing — see `docs/ROADMAP.md`
+- ✅ Seller on-chain identity: `register_agent` + `scripts/register_seller.py` (ERC-8004 Identity Registry; code + tests — unlocks live giveFeedback once a seller is registered)
+- ⬜ live registration/broadcast (needs funded testnet wallet) · CDP facilitator · dynamic per-model pricing — see `docs/ROADMAP.md`
 
 ## Security
 
