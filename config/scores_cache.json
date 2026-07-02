@@ -48,8 +48,8 @@
       "median_output_tokens_per_second": 70
     },
     {
-      "slug": "gemini-2.0-flash",
-      "name": "Gemini 2.0 Flash",
+      "slug": "gemini-2.5-flash",
+      "name": "Gemini 2.5 Flash",
       "artificial_analysis_intelligence_index": 48,
       "artificial_analysis_coding_index": 42,
       "artificial_analysis_agentic_index": 22,
